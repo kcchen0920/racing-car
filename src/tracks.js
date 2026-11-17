@@ -220,37 +220,8 @@ export function buildTrack(scene, themeId) {
   archGroup.lookAt(startPt.clone().add(startTan));
   scene.add(archGroup);
 
-  // Item Boxes (?)
+  // Item Boxes (?) (temporarily disabled for debugging)
   const itemBoxes = [];
-  const boxGeo = new THREE.BoxGeometry(2.2, 2.2, 2.2);
-  const qCanvas = document.createElement('canvas');
-  qCanvas.width = 128;
-  qCanvas.height = 128;
-  const qCtx = qCanvas.getContext('2d');
-  qCtx.fillStyle = '#ffd54f';
-  qCtx.fillRect(0, 0, 128, 128);
-  qCtx.strokeStyle = '#ff8f00';
-  qCtx.lineWidth = 10;
-  qCtx.strokeRect(5, 5, 118, 118);
-  qCtx.fillStyle = '#ffffff';
-  qCtx.font = 'bold 84px sans-serif';
-  qCtx.textAlign = 'center';
-  qCtx.textBaseline = 'middle';
-  qCtx.fillText('?', 64, 68);
-  const boxMat = new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(qCanvas) });
-  [0.15, 0.35, 0.55, 0.75, 0.9].forEach((t) => {
-    const pt = curve.getPointAt(t);
-    const tan = curve.getTangentAt(t).normalize();
-    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
-    [-3.5, 3.5].forEach((offset) => {
-      const box = new THREE.Mesh(boxGeo, boxMat.clone());
-      const pos = pt.clone().addScaledVector(norm, offset);
-      box.position.set(pos.x, 1.8, pos.z);
-      box.userData = { active: true, respawnTimer: 0 };
-      scene.add(box);
-      itemBoxes.push(box);
-    });
-  });
 
   // Interactive Road Obstacles (temporarily disabled for debugging)
   const obstacles = [];
