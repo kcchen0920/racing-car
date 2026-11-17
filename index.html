@@ -7,14 +7,19 @@
   <meta name="theme-color" content="#ff7043" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
-  <title>小小賽車手 - Little Kart</title>
+  <title>米果哥小小賽車手 - Little Kart</title>
 </head>
 <body>
   <div id="game-container"></div>
 
   <!-- 選單畫面 -->
   <div id="menu-overlay" class="overlay">
-    <h1>🏎️ 小小賽車手</h1>
+    <h1>🏎️ 米果哥小小賽車手</h1>
+    <div id="hero-avatar-box" class="hero-box">
+      <img id="hero-preview" class="hero-preview hidden" alt="米果哥" />
+      <label for="hero-upload" class="upload-btn">📸 放入米果哥照片當主角</label>
+      <input id="hero-upload" type="file" accept="image/*" class="hidden" />
+    </div>
     <div class="section-label">選一台可愛車車</div>
     <div id="kart-choices" class="card-row"></div>
     <div class="section-label">選車車顏色</div>

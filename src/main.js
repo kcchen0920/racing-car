@@ -63,6 +63,26 @@ TRACK_THEMES.forEach((t) => {
   trackRow.appendChild(btn);
 });
 
+const heroUpload = document.getElementById('hero-upload');
+const heroPreview = document.getElementById('hero-preview');
+const savedHero = localStorage.getItem('migou_hero_photo');
+if (savedHero) {
+  heroPreview.src = savedHero;
+  heroPreview.classList.remove('hidden');
+}
+
+heroUpload.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    heroPreview.src = reader.result;
+    heroPreview.classList.remove('hidden');
+    localStorage.setItem('migou_hero_photo', reader.result);
+  };
+  reader.readAsDataURL(file);
+});
+
 const game = new RacingGame(document.getElementById('game-container'), {
   onLapChange: (lap, total) => {
     lapBadge.textContent = `🏁 第 ${lap} / ${total} 圈`;
