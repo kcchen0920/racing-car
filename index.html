@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#ff7043" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <title>小小賽車手 - Little Kart</title>
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <!-- 選單畫面 -->
+  <div id="menu-overlay" class="overlay">
+    <h1>🏎️ 小小賽車手</h1>
+    <div class="section-label">選一台可愛車車</div>
+    <div id="kart-choices" class="card-row"></div>
+    <div class="section-label">選一條賽道</div>
+    <div id="track-choices" class="card-row"></div>
+    <button id="start-btn" class="start-btn">出發！</button>
+  </div>
+
+  <!-- 遊戲中 HUD -->
+  <div id="hud" class="hidden">
+    <div id="lap-badge">🏁 第 1 / 2 圈</div>
+    <div id="countdown"></div>
+    <div id="touch-left" class="touch-zone"><div class="steer-hint">⬅️</div></div>
+    <div id="touch-right" class="touch-zone"><div class="steer-hint">➡️</div></div>
+    <button id="item-btn" class="hidden">🍄</button>
+  </div>
+
+  <!-- 過關慶祝畫面 -->
+  <div id="finish-overlay" class="overlay hidden">
+    <h1>🎉 太棒了！你贏了！🏆</h1>
+    <button id="replay-btn" class="start-btn">再玩一次！</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

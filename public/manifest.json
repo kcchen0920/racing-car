@@ -1,0 +1,18 @@
+{
+  "name": "小小賽車手 - Little Kart",
+  "short_name": "小小賽車手",
+  "description": "專為 4 歲幼兒設計的 3D 卡通賽車遊戲",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#4fc3f7",
+  "theme_color": "#ff7043",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
