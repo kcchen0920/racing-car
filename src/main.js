@@ -94,6 +94,17 @@ heroRemove.addEventListener('click', () => {
   heroUpload.value = '';
 });
 
+const STORY_CHAPTERS = {
+  zoo: '第 1 關完成！接下來要穿過時光門，前往「🦕 恐龍世界」找恐龍好朋友囉！',
+  dino: '第 2 關完成！恐龍說「🐪 沙漠金字塔」裡有閃亮寶藏，我們出發吧！',
+  desert: '第 3 關完成！最後一站潛入「🐠 水中世界」，跟海龜和熱帶魚開派對！',
+  underwater: '🎊 恭喜米果哥完成全部 4 關大冒險！你是超級小賽車手！🏆',
+};
+
+const finishTitle = document.getElementById('finish-title');
+const storyText = document.getElementById('story-text');
+const nextStageBtn = document.getElementById('next-stage-btn');
+
 const game = new RacingGame(document.getElementById('game-container'), {
   onLapChange: (lap, total) => {
     lapBadge.textContent = `🏁 第 ${lap} / ${total} 圈`;
@@ -116,6 +127,15 @@ const game = new RacingGame(document.getElementById('game-container'), {
     sound.stopBGM();
     hudEl.classList.add('hidden');
     finishEl.classList.remove('hidden');
+    const idx = TRACK_THEMES.findIndex((t) => t.id === selectedTrack);
+    const isLast = idx >= TRACK_THEMES.length - 1;
+    finishTitle.textContent = isLast ? '🎉 大冒險全破關！🏆' : '🎉 太棒了！過關囉！🏆';
+    storyText.textContent = STORY_CHAPTERS[selectedTrack] || '';
+    if (isLast) {
+      nextStageBtn.classList.add('hidden');
+    } else {
+      nextStageBtn.classList.remove('hidden');
+    }
   },
 });
 
@@ -129,6 +149,13 @@ function startGame() {
 }
 
 document.getElementById('start-btn').onclick = startGame;
+nextStageBtn.onclick = () => {
+  const idx = TRACK_THEMES.findIndex((t) => t.id === selectedTrack);
+  if (idx >= 0 && idx < TRACK_THEMES.length - 1) {
+    selectedTrack = TRACK_THEMES[idx + 1].id;
+    startGame();
+  }
+};
 document.getElementById('replay-btn').onclick = () => {
   finishEl.classList.add('hidden');
   menuEl.classList.remove('hidden');

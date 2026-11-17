@@ -41,11 +41,15 @@
     <button id="item-btn" class="hidden">🍄</button>
   </div>
 
-  <!-- 過關慶祝畫面 -->
+  <!-- 過關與故事劇情畫面 -->
   <div id="finish-overlay" class="overlay hidden">
     <div style="font-size: 3.5rem; margin-bottom: 8px;">🎊🌟🏆🌟🎊</div>
-    <h1>🎉 太棒了！你贏了！🏆</h1>
-    <button id="replay-btn" class="start-btn">再玩一次！</button>
+    <h1 id="finish-title">🎉 太棒了！過關囉！🏆</h1>
+    <p id="story-text" style="font-size: 1.3rem; font-weight: bold; color: #37474f; max-width: 520px; text-align: center; margin: 8px 0 16px;"></p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+      <button id="next-stage-btn" class="start-btn">➡️ 繼續下一關！</button>
+      <button id="replay-btn" class="start-btn" style="background: #4fc3f7; box-shadow: 0 6px 0 #0288d1;">🏠 回首頁</button>
+    </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>
