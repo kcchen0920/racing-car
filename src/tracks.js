@@ -287,19 +287,7 @@ export function buildTrack(scene, themeId) {
     coins.push(coin);
   }
 
-  // Glowing Boost Pads (⚡)
   const boostPads = [];
-  const padGeo = new THREE.BoxGeometry(4.5, 0.12, 6.0);
-  const padMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
-  [0.2, 0.5, 0.8].forEach((t) => {
-    const pt = curve.getPointAt(t);
-    const tan = curve.getTangentAt(t).normalize();
-    const pad = new THREE.Mesh(padGeo, padMat);
-    pad.position.set(pt.x, 0.08, pt.z);
-    pad.lookAt(pt.clone().add(tan));
-    scene.add(pad);
-    boostPads.push(pad);
-  });
 
   // Vivid Illustrated Animals & Plants around the track
   const animatedProps = [];
