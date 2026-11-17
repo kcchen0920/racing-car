@@ -65,6 +65,10 @@ class SoundManager {
     this.playTone(300, 0.15, 'sine', 0.2, 600);
   }
 
+  playBoing() {
+    this.playTone(180, 0.22, 'sine', 0.25, 380);
+  }
+
   playFinish() {
     const notes = [523, 659, 784, 1046];
     notes.forEach((n, i) => {

@@ -71,6 +71,8 @@ export class RacingGame {
       boostTimer: 0,
       starTimer: 0,
       bubbleTimer: 0,
+      slowTimer: 0,
+      bounceTimer: 0,
     };
 
     // Setup 2 gentle AI opponents
@@ -165,6 +167,13 @@ export class RacingGame {
       if (this.player.boostTimer > 0) {
         speed *= 1.55;
         this.player.boostTimer--;
+      } else if (this.player.slowTimer > 0) {
+        speed *= 0.45;
+        this.player.slowTimer--;
+      }
+      if (this.player.bounceTimer > 0) {
+        this.player.bounceTimer--;
+        this.player.mesh.position.y = Math.abs(Math.sin(this.player.bounceTimer * 0.4)) * 1.4;
       }
 
       // Rainbow star effect
@@ -217,6 +226,31 @@ export class RacingGame {
         ai.t = (ai.t + aiSpeed) % 1;
         this.updateKartTransform(ai);
       });
+
+      // Obstacle collisions
+      if (this.track.obstacles) {
+        this.track.obstacles.forEach((obs) => {
+          if (!obs.userData.active) {
+            obs.userData.respawnTimer--;
+            if (obs.userData.respawnTimer <= 0) {
+              obs.userData.active = true;
+              obs.visible = true;
+            }
+            return;
+          }
+          const dist = obs.position.distanceTo(this.player.mesh.position);
+          if (dist < 3.0) {
+            obs.userData.active = false;
+            obs.visible = false;
+            obs.userData.respawnTimer = 180;
+            sound.playBoing();
+            if (this.player.starTimer <= 0 && this.player.bubbleTimer <= 0) {
+              this.player.slowTimer = 45;
+              this.player.bounceTimer = 20;
+            }
+          }
+        });
+      }
 
       // Item Box collisions
       this.track.itemBoxes.forEach((box) => {
