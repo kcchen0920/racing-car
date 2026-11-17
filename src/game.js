@@ -334,7 +334,7 @@ export class RacingGame {
         .addScaledVector(forward, -11)
         .add(new THREE.Vector3(0, 5.5, 0));
 
-      this.camera.position.lerp(camTargetPos, 0.25);
+      this.camera.position.copy(camTargetPos);
       const lookAtPos = kartPos.clone().addScaledVector(forward, 5);
       lookAtPos.y += 1.2;
       this.camera.lookAt(lookAtPos);
