@@ -259,16 +259,6 @@ export class RacingGame {
         });
       }
 
-      // Boost Pad collisions
-      if (this.track.boostPads) {
-        this.track.boostPads.forEach((pad) => {
-          if (pad.position.distanceTo(this.player.mesh.position) < 3.6 && this.player.boostTimer < 30) {
-            this.player.boostTimer = 75;
-            sound.playBoost();
-          }
-        });
-      }
-
       // Obstacle collisions
       if (this.track.obstacles) {
         this.track.obstacles.forEach((obs) => {

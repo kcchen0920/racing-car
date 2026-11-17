@@ -65,10 +65,12 @@ TRACK_THEMES.forEach((t) => {
 
 const heroUpload = document.getElementById('hero-upload');
 const heroPreview = document.getElementById('hero-preview');
+const heroRemove = document.getElementById('hero-remove');
 const savedHero = localStorage.getItem('migou_hero_photo');
 if (savedHero) {
   heroPreview.src = savedHero;
   heroPreview.classList.remove('hidden');
+  heroRemove.classList.remove('hidden');
 }
 
 heroUpload.addEventListener('change', (e) => {
@@ -78,9 +80,18 @@ heroUpload.addEventListener('change', (e) => {
   reader.onload = () => {
     heroPreview.src = reader.result;
     heroPreview.classList.remove('hidden');
+    heroRemove.classList.remove('hidden');
     localStorage.setItem('migou_hero_photo', reader.result);
   };
   reader.readAsDataURL(file);
+});
+
+heroRemove.addEventListener('click', () => {
+  localStorage.removeItem('migou_hero_photo');
+  heroPreview.src = '';
+  heroPreview.classList.add('hidden');
+  heroRemove.classList.add('hidden');
+  heroUpload.value = '';
 });
 
 const game = new RacingGame(document.getElementById('game-container'), {
