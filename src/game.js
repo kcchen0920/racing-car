@@ -326,18 +326,16 @@ export class RacingGame {
       });
     }
 
-    if (this.player) {
+    if (this.player && this.track) {
       const kartPos = this.player.mesh.position;
-      const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(
-        this.player.mesh.quaternion
-      );
+      const forward = this.track.curve.getTangentAt(this.player.t % 1).normalize();
       const camTargetPos = kartPos
         .clone()
-        .addScaledVector(forward, -10)
-        .add(new THREE.Vector3(0, 5.2, 0));
+        .addScaledVector(forward, -11)
+        .add(new THREE.Vector3(0, 5.5, 0));
 
-      this.camera.position.lerp(camTargetPos, 0.18);
-      const lookAtPos = kartPos.clone().addScaledVector(forward, 6);
+      this.camera.position.lerp(camTargetPos, 0.25);
+      const lookAtPos = kartPos.clone().addScaledVector(forward, 5);
       lookAtPos.y += 1.2;
       this.camera.lookAt(lookAtPos);
     }
