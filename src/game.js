@@ -19,10 +19,10 @@ export class RacingGame {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
-      62,
+      72,
       container.clientWidth / container.clientHeight,
       0.1,
-      500
+      600
     );
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -69,7 +69,7 @@ export class RacingGame {
       t: 0,
       lateral: 0, // -1 to 1 across roadWidth
       speed: 0,
-      baseSpeed: 0.00115, // progress per frame
+      baseSpeed: 0.00135, // progress per frame
       lap: 1,
       coins: 0,
       item: null,
@@ -228,11 +228,22 @@ export class RacingGame {
       this.player.mesh.visible = true;
       this.updateKartTransform(this.player, bounceY);
 
-      // Update AI with gentle rubber-banding
+      // Update AI & Kart-to-Kart Physics Collision
       this.ais.forEach((ai) => {
         const aiSpeed = ai.baseSpeed;
         ai.t = (ai.t + aiSpeed) % 1;
         this.updateKartTransform(ai);
+
+        const dist = this.player.mesh.position.distanceTo(ai.mesh.position);
+        if (dist < 3.0) {
+          const pushDir = this.player.lateral >= ai.lateral ? 1 : -1;
+          ai.lateral = Math.max(-1, Math.min(1, ai.lateral - pushDir * 0.14));
+          if (this.player.starTimer <= 0 && this.player.bubbleTimer <= 0) {
+            this.player.lateral = Math.max(-1, Math.min(1, this.player.lateral + pushDir * 0.1));
+            this.player.slowTimer = Math.max(this.player.slowTimer, 15);
+          }
+          try { sound.playBoing(); } catch (_) {}
+        }
       });
 
       // Coin collisions

@@ -107,15 +107,15 @@ export function buildTrack(scene, themeId) {
 
   const points = [
     new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(0, 0, 70),
-    new THREE.Vector3(45, 0, 120),
-    new THREE.Vector3(110, 0, 110),
-    new THREE.Vector3(140, 0, 50),
-    new THREE.Vector3(115, 0, -20),
-    new THREE.Vector3(145, 0, -85),
-    new THREE.Vector3(95, 0, -135),
-    new THREE.Vector3(20, 0, -110),
-    new THREE.Vector3(-10, 0, -60),
+    new THREE.Vector3(0, 0, 105),
+    new THREE.Vector3(68, 0, 180),
+    new THREE.Vector3(165, 0, 165),
+    new THREE.Vector3(210, 0, 75),
+    new THREE.Vector3(172, 0, -30),
+    new THREE.Vector3(218, 0, -128),
+    new THREE.Vector3(142, 0, -202),
+    new THREE.Vector3(30, 0, -165),
+    new THREE.Vector3(-15, 0, -90),
   ];
 
   const curve = new THREE.CatmullRomCurve3(points, true, 'catmullrom', 0.5);
