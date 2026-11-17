@@ -203,6 +203,9 @@ export function createKartMesh(typeId, customColor = null, heroPhotoUrl = null) 
     group.add(sprite);
   }
 
+  group.traverse((obj) => {
+    obj.frustumCulled = false;
+  });
   group.userData = { wheels, body: tub, bodyMat, baseColor: bodyColor, bubble };
   return group;
 }
