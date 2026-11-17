@@ -252,21 +252,8 @@ export function buildTrack(scene, themeId) {
     });
   });
 
-  // Interactive Road Obstacles
+  // Interactive Road Obstacles (temporarily disabled for debugging)
   const obstacles = [];
-  [0.1, 0.25, 0.45, 0.65, 0.82].forEach((t, idx) => {
-    const pt = curve.getPointAt(t);
-    const tan = curve.getTangentAt(t).normalize();
-    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
-    const offset = idx % 2 === 0 ? 3.2 : -3.2;
-    const emoji = theme.obstacles[idx % theme.obstacles.length];
-    const obs = createEmojiSprite(emoji, 3.8);
-    const pos = pt.clone().addScaledVector(norm, offset);
-    obs.position.set(pos.x, 1.8, pos.z);
-    obs.userData = { active: true, respawnTimer: 0 };
-    scene.add(obs);
-    obstacles.push(obs);
-  });
 
   // Collectible Coins (⭐)
   const coins = [];
