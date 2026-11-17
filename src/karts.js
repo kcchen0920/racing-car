@@ -34,13 +34,22 @@ export function createKartMesh(typeId) {
   const cfg = KART_TYPES.find((k) => k.id === typeId) || KART_TYPES[0];
   const group = new THREE.Group();
 
-  // Kart chassis
+  // Kart chassis (glossy toy look)
   const bodyGeo = new THREE.BoxGeometry(2.0, 0.7, 3.2);
-  const bodyMat = new THREE.MeshLambertMaterial({ color: cfg.bodyColor });
+  const bodyMat = new THREE.MeshPhongMaterial({ color: cfg.bodyColor, shininess: 80 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = 0.7;
   body.castShadow = true;
   group.add(body);
+
+  // Cute Headlights
+  const lightGeo = new THREE.SphereGeometry(0.18, 10, 10);
+  const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff59d });
+  [-0.65, 0.65].forEach((lx) => {
+    const hl = new THREE.Mesh(lightGeo, lightMat);
+    hl.position.set(lx, 0.78, 1.62);
+    group.add(hl);
+  });
 
   // Front bumper / accent
   const bumperGeo = new THREE.BoxGeometry(2.1, 0.35, 0.5);
@@ -81,6 +90,15 @@ export function createKartMesh(typeId) {
   head.position.set(0, 1.55, -0.1);
   head.castShadow = true;
   group.add(head);
+
+  // Blush cheeks
+  const cheekGeo = new THREE.SphereGeometry(0.14, 8, 8);
+  const cheekMat = new THREE.MeshBasicMaterial({ color: 0xff8a80 });
+  [-0.36, 0.36].forEach((cx) => {
+    const cheek = new THREE.Mesh(cheekGeo, cheekMat);
+    cheek.position.set(cx, 1.48, 0.45);
+    group.add(cheek);
+  });
 
   // Eyes
   const eyeGeo = new THREE.SphereGeometry(0.1, 8, 8);

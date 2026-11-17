@@ -139,14 +139,14 @@ export class RacingGame {
     }
   }
 
-  updateKartTransform(kart) {
+  updateKartTransform(kart, yOffset = 0) {
     const pt = this.track.curve.getPointAt(kart.t % 1);
     const tan = this.track.curve.getTangentAt(kart.t % 1).normalize();
     const norm = new THREE.Vector3(-tan.z, 0, tan.x);
 
     const maxOffset = this.track.roadWidth * 0.38;
     const pos = pt.clone().addScaledVector(norm, kart.lateral * maxOffset);
-    kart.mesh.position.set(pos.x, 0, pos.z);
+    kart.mesh.position.set(pos.x, yOffset, pos.z);
 
     const lookTarget = pos.clone().add(tan);
     kart.mesh.lookAt(lookTarget);
@@ -171,9 +171,10 @@ export class RacingGame {
         speed *= 0.45;
         this.player.slowTimer--;
       }
+      let bounceY = 0;
       if (this.player.bounceTimer > 0) {
         this.player.bounceTimer--;
-        this.player.mesh.position.y = Math.abs(Math.sin(this.player.bounceTimer * 0.4)) * 1.4;
+        bounceY = Math.abs(Math.sin(this.player.bounceTimer * 0.4)) * 1.6;
       }
 
       // Rainbow star effect
@@ -218,7 +219,7 @@ export class RacingGame {
         }
       }
 
-      this.updateKartTransform(this.player);
+      this.updateKartTransform(this.player, bounceY);
 
       // Update AI with gentle rubber-banding
       this.ais.forEach((ai) => {

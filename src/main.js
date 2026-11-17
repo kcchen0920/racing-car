@@ -81,20 +81,38 @@ document.getElementById('replay-btn').onclick = () => {
 // Touch controls
 const touchLeft = document.getElementById('touch-left');
 const touchRight = document.getElementById('touch-right');
+const leftHint = touchLeft.querySelector('.steer-hint');
+const rightHint = touchRight.querySelector('.steer-hint');
+
+const stopSteer = () => {
+  game.setSteer(0);
+  leftHint.classList.remove('active');
+  rightHint.classList.remove('active');
+};
 
 touchLeft.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   game.setSteer(-1);
+  leftHint.classList.add('active');
 });
-touchLeft.addEventListener('pointerup', () => game.setSteer(0));
-touchLeft.addEventListener('pointercancel', () => game.setSteer(0));
+touchLeft.addEventListener('pointerup', stopSteer);
+touchLeft.addEventListener('pointercancel', stopSteer);
+touchLeft.addEventListener('pointerleave', stopSteer);
 
 touchRight.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   game.setSteer(1);
+  rightHint.classList.add('active');
 });
-touchRight.addEventListener('pointerup', () => game.setSteer(0));
-touchRight.addEventListener('pointercancel', () => game.setSteer(0));
+touchRight.addEventListener('pointerup', stopSteer);
+touchRight.addEventListener('pointercancel', stopSteer);
+touchRight.addEventListener('pointerleave', stopSteer);
+
+const muteBtn = document.getElementById('mute-btn');
+muteBtn.onclick = () => {
+  sound.muted = !sound.muted;
+  muteBtn.textContent = sound.muted ? '🔇' : '🔊';
+};
 
 itemBtn.addEventListener('pointerdown', (e) => {
   e.stopPropagation();
