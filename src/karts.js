@@ -30,7 +30,7 @@ export const KART_TYPES = [
   },
 ];
 
-export function createKartMesh(typeId, customColor = null) {
+export function createKartMesh(typeId, customColor = null, heroPhotoUrl = null) {
   const cfg = KART_TYPES.find((k) => k.id === typeId) || KART_TYPES[0];
   const bodyColor = customColor || cfg.bodyColor;
   const group = new THREE.Group();
@@ -148,6 +148,16 @@ export function createKartMesh(typeId, customColor = null) {
   bubble.position.y = 1.1;
   bubble.visible = false;
   group.add(bubble);
+
+  // Hero Photo Driver Badge (if uploaded)
+  if (heroPhotoUrl) {
+    const tex = new THREE.TextureLoader().load(heroPhotoUrl);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
+    sprite.position.set(0, 2.7, -0.1);
+    sprite.scale.set(1.8, 1.8, 1);
+    group.add(sprite);
+  }
 
   group.userData = { wheels, body, bodyMat, baseColor: bodyColor, bubble };
   return group;

@@ -41,7 +41,7 @@ export class RacingGame {
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
   }
 
-  start(kartId, trackId, customColor = null) {
+  start(kartId, trackId, customColor = null, heroPhotoUrl = null) {
     // Clear previous scene
     while (this.scene.children.length > 0) {
       this.scene.remove(this.scene.children[0]);
@@ -62,7 +62,7 @@ export class RacingGame {
     this.track = buildTrack(this.scene, trackId);
 
     // Setup Player
-    const playerMesh = createKartMesh(kartId, customColor);
+    const playerMesh = createKartMesh(kartId, customColor, heroPhotoUrl);
     this.scene.add(playerMesh);
     this.player = {
       mesh: playerMesh,

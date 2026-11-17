@@ -114,7 +114,7 @@ function startGame() {
   menuEl.classList.add('hidden');
   finishEl.classList.add('hidden');
   hudEl.classList.remove('hidden');
-  game.start(selectedKart, selectedTrack, selectedColor);
+  game.start(selectedKart, selectedTrack, selectedColor, localStorage.getItem('migou_hero_photo'));
 }
 
 document.getElementById('start-btn').onclick = startGame;
