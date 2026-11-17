@@ -226,24 +226,8 @@ export function buildTrack(scene, themeId) {
   // Interactive Road Obstacles (temporarily disabled for debugging)
   const obstacles = [];
 
-  // Collectible Coins (⭐)
+  // Collectible Coins (⭐) (temporarily disabled for debugging)
   const coins = [];
-  const coinGeo = new THREE.CylinderGeometry(0.9, 0.9, 0.25, 14);
-  coinGeo.rotateX(Math.PI / 2);
-  const coinMat = new THREE.MeshPhongMaterial({ color: 0xffeb3b, shininess: 100 });
-  for (let i = 0; i < 16; i++) {
-    const t = (i + 0.5) / 16;
-    const pt = curve.getPointAt(t);
-    const tan = curve.getTangentAt(t).normalize();
-    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
-    const offset = Math.sin(i * 1.3) * 3.8;
-    const coin = new THREE.Mesh(coinGeo, coinMat);
-    const pos = pt.clone().addScaledVector(norm, offset);
-    coin.position.set(pos.x, 1.4, pos.z);
-    coin.userData = { active: true, respawnTimer: 0 };
-    scene.add(coin);
-    coins.push(coin);
-  }
 
   const boostPads = [];
 

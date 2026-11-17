@@ -227,7 +227,6 @@ export class RacingGame {
 
       this.player.mesh.visible = true;
       this.updateKartTransform(this.player, bounceY);
-      this.player.mesh.rotation.z = -this.steerInput * 0.12;
 
       // Update AI with gentle rubber-banding
       this.ais.forEach((ai) => {
