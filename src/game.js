@@ -80,16 +80,17 @@ export class RacingGame {
       bounceTimer: 0,
     };
 
-    // Setup 2 gentle AI opponents
-    const aiIds = KART_TYPES.map((k) => k.id).filter((id) => id !== kartId);
-    this.ais = aiIds.slice(0, 2).map((id, idx) => {
-      const mesh = createKartMesh(id);
+    // Setup 7 AI opponents (8 cars total)
+    const aiColors = [0x29b6f6, 0xab47bc, 0xffa726, 0x26a69a, 0xec407a, 0x8d6e63, 0x5c6bc0];
+    this.ais = Array.from({ length: 7 }, (_, idx) => {
+      const typeId = KART_TYPES[idx % KART_TYPES.length].id;
+      const mesh = createKartMesh(typeId, aiColors[idx]);
       this.scene.add(mesh);
       return {
         mesh,
-        t: 0.015 * (idx + 1),
-        lateral: idx === 0 ? -0.45 : 0.45,
-        baseSpeed: 0.00105 + idx * 0.00005,
+        t: 0.01 * (idx + 1),
+        lateral: ((idx % 3) - 1) * 0.45,
+        baseSpeed: 0.00122 + (idx % 4) * 0.00006,
         lap: 1,
       };
     });
@@ -228,10 +229,19 @@ export class RacingGame {
       this.player.mesh.visible = true;
       this.updateKartTransform(this.player, bounceY);
 
-      // Update AI & Kart-to-Kart Physics Collision
+      // Update AI with dynamic rubber-banding & Kart-to-Kart Physics Collision
+      const playerProg = this.player.lap + this.player.t;
       this.ais.forEach((ai) => {
-        const aiSpeed = ai.baseSpeed;
+        const aiProg = ai.lap + ai.t;
+        let aiSpeed = ai.baseSpeed;
+        if (aiProg < playerProg - 0.04) {
+          aiSpeed *= 1.18; // catch up!
+        } else if (aiProg > playerProg + 0.08) {
+          aiSpeed *= 0.92; // keep race close
+        }
+        const prevAiT = ai.t;
         ai.t = (ai.t + aiSpeed) % 1;
+        if (ai.t < prevAiT) ai.lap++;
         this.updateKartTransform(ai);
 
         const dist = this.player.mesh.position.distanceTo(ai.mesh.position);
