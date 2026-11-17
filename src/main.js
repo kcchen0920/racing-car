@@ -57,6 +57,7 @@ const game = new RacingGame(document.getElementById('game-container'), {
     }
   },
   onFinish: () => {
+    sound.stopBGM();
     hudEl.classList.add('hidden');
     finishEl.classList.remove('hidden');
   },
@@ -64,6 +65,7 @@ const game = new RacingGame(document.getElementById('game-container'), {
 
 function startGame() {
   sound.init();
+  sound.startBGM();
   menuEl.classList.add('hidden');
   finishEl.classList.add('hidden');
   hudEl.classList.remove('hidden');

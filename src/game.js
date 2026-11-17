@@ -246,6 +246,20 @@ export class RacingGame {
     }
 
     // Smooth Third-Person Follow Camera
+    if (this.track && this.track.animatedProps) {
+      const time = Date.now() * 0.002;
+      this.track.animatedProps.forEach((p) => {
+        if (p.type === 'bob') {
+          p.mesh.position.y = p.baseY + Math.abs(Math.sin(time + p.phase)) * 0.35;
+        } else if (p.type === 'float') {
+          p.mesh.position.y = p.baseY + Math.sin(time * 0.8 + p.phase) * 0.9;
+        } else if (p.type === 'swim') {
+          p.mesh.position.y = p.baseY + Math.sin(time + p.phase) * 0.6;
+          p.mesh.rotation.y += 0.015;
+        }
+      });
+    }
+
     if (this.player) {
       const kartPos = this.player.mesh.position;
       const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(

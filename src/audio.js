@@ -3,6 +3,8 @@ class SoundManager {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.bgmTimer = null;
+    this.bgmStep = 0;
   }
 
   init() {
@@ -68,6 +70,32 @@ class SoundManager {
     notes.forEach((n, i) => {
       setTimeout(() => this.playTone(n, 0.25, 'triangle', 0.28), i * 120);
     });
+  }
+
+  startBGM() {
+    if (this.bgmTimer) return;
+    // Cheerful bouncy kid-friendly melody (C major pentatonic)
+    const melody = [
+      523, 659, 784, 659, 880, 784, 659, 523,
+      587, 659, 784, 880, 784, 659, 587, 0,
+    ];
+    const bass = [261, 0, 392, 0, 349, 0, 392, 0, 293, 0, 392, 0, 261, 0, 392, 0];
+
+    this.bgmTimer = setInterval(() => {
+      if (this.muted || !this.ctx) return;
+      const m = melody[this.bgmStep % melody.length];
+      const b = bass[this.bgmStep % bass.length];
+      if (m > 0) this.playTone(m, 0.16, 'triangle', 0.08);
+      if (b > 0) this.playTone(b, 0.22, 'sine', 0.07);
+      this.bgmStep++;
+    }, 220);
+  }
+
+  stopBGM() {
+    if (this.bgmTimer) {
+      clearInterval(this.bgmTimer);
+      this.bgmTimer = null;
+    }
   }
 }
 
