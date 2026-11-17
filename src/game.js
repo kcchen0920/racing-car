@@ -171,7 +171,7 @@ export class RacingGame {
       // Player movement (auto-accelerate + smart steering)
       let speed = this.player.baseSpeed;
       if (this.player.boostTimer > 0) {
-        speed *= 1.55;
+        speed *= 1.35;
         this.player.boostTimer--;
       } else if (this.player.slowTimer > 0) {
         speed *= 0.45;
@@ -225,21 +225,9 @@ export class RacingGame {
         }
       }
 
+      this.player.mesh.visible = true;
       this.updateKartTransform(this.player, bounceY);
       this.player.mesh.rotation.z = -this.steerInput * 0.12;
-
-      // Boost / Star sparkle particles
-      if (this.player.boostTimer > 0 || this.player.starTimer > 0) {
-        const spark = new THREE.Mesh(
-          new THREE.SphereGeometry(0.28, 6, 6),
-          new THREE.MeshBasicMaterial({
-            color: this.player.starTimer > 0 ? Math.random() * 0xffffff : 0xff9800,
-          })
-        );
-        spark.position.copy(this.player.mesh.position).add(new THREE.Vector3(0, 0.8, 0));
-        this.scene.add(spark);
-        setTimeout(() => this.scene.remove(spark), 220);
-      }
 
       // Update AI with gentle rubber-banding
       this.ais.forEach((ai) => {
