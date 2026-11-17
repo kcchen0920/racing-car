@@ -200,8 +200,19 @@ export function buildTrack(scene, themeId) {
     p.position.set(x, 4, 0);
     archGroup.add(p);
   });
-  const bannerGeo = new THREE.BoxGeometry(roadWidth + 2, 2.2, 1.0);
-  const bannerMat = new THREE.MeshLambertMaterial({ color: 0xff5252 });
+  const bannerGeo = new THREE.BoxGeometry(roadWidth + 2, 2.4, 1.0);
+  const bannerCanvas = document.createElement('canvas');
+  bannerCanvas.width = 256;
+  bannerCanvas.height = 64;
+  const bCtx = bannerCanvas.getContext('2d');
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 8; c++) {
+      bCtx.fillStyle = (r + c) % 2 === 0 ? '#ffffff' : '#222222';
+      bCtx.fillRect(c * 32, r * 32, 32, 32);
+    }
+  }
+  const bannerTex = new THREE.CanvasTexture(bannerCanvas);
+  const bannerMat = new THREE.MeshLambertMaterial({ map: bannerTex });
   const banner = new THREE.Mesh(bannerGeo, bannerMat);
   banner.position.set(0, 7.5, 0);
   archGroup.add(banner);
@@ -212,7 +223,21 @@ export function buildTrack(scene, themeId) {
   // Item Boxes (?)
   const itemBoxes = [];
   const boxGeo = new THREE.BoxGeometry(2.2, 2.2, 2.2);
-  const boxMat = new THREE.MeshLambertMaterial({ color: 0xffd54f });
+  const qCanvas = document.createElement('canvas');
+  qCanvas.width = 128;
+  qCanvas.height = 128;
+  const qCtx = qCanvas.getContext('2d');
+  qCtx.fillStyle = '#ffd54f';
+  qCtx.fillRect(0, 0, 128, 128);
+  qCtx.strokeStyle = '#ff8f00';
+  qCtx.lineWidth = 10;
+  qCtx.strokeRect(5, 5, 118, 118);
+  qCtx.fillStyle = '#ffffff';
+  qCtx.font = 'bold 84px sans-serif';
+  qCtx.textAlign = 'center';
+  qCtx.textBaseline = 'middle';
+  qCtx.fillText('?', 64, 68);
+  const boxMat = new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(qCanvas) });
   [0.15, 0.35, 0.55, 0.75, 0.9].forEach((t) => {
     const pt = curve.getPointAt(t);
     const tan = curve.getTangentAt(t).normalize();

@@ -51,8 +51,12 @@ export class RacingGame {
     const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.1);
     this.scene.add(hemi);
     const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-    dir.position.set(40, 80, 40);
+    dir.position.set(60, 120, 60);
     dir.castShadow = true;
+    dir.shadow.camera.left = -160;
+    dir.shadow.camera.right = 160;
+    dir.shadow.camera.top = 160;
+    dir.shadow.camera.bottom = -160;
     this.scene.add(dir);
 
     this.track = buildTrack(this.scene, trackId);
@@ -220,6 +224,20 @@ export class RacingGame {
       }
 
       this.updateKartTransform(this.player, bounceY);
+      this.player.mesh.rotation.z = -this.steerInput * 0.12;
+
+      // Boost / Star sparkle particles
+      if (this.player.boostTimer > 0 || this.player.starTimer > 0) {
+        const spark = new THREE.Mesh(
+          new THREE.SphereGeometry(0.28, 6, 6),
+          new THREE.MeshBasicMaterial({
+            color: this.player.starTimer > 0 ? Math.random() * 0xffffff : 0xff9800,
+          })
+        );
+        spark.position.copy(this.player.mesh.position).add(new THREE.Vector3(0, 0.8, 0));
+        this.scene.add(spark);
+        setTimeout(() => this.scene.remove(spark), 220);
+      }
 
       // Update AI with gentle rubber-banding
       this.ais.forEach((ai) => {
