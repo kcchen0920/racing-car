@@ -35,53 +35,97 @@ export function createKartMesh(typeId, customColor = null, heroPhotoUrl = null) 
   const bodyColor = customColor || cfg.bodyColor;
   const group = new THREE.Group();
 
-  // Kart chassis (glossy toy look)
-  const bodyGeo = new THREE.BoxGeometry(2.0, 0.7, 3.2);
-  const bodyMat = new THREE.MeshPhongMaterial({ color: bodyColor, shininess: 80 });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.7;
-  body.castShadow = true;
-  group.add(body);
+  // Mario Kart-style Go-Kart Chassis
+  const bodyMat = new THREE.MeshPhongMaterial({ color: bodyColor, shininess: 90 });
+  const accentMat = new THREE.MeshPhongMaterial({ color: cfg.accentColor, shininess: 70 });
+  const chromeMat = new THREE.MeshPhongMaterial({ color: 0xe0e0e0, shininess: 120 });
+
+  // Main lower tub
+  const tub = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.45, 2.4), bodyMat);
+  tub.position.set(0, 0.55, -0.1);
+  tub.castShadow = true;
+  group.add(tub);
+
+  // Tapered F1-style front nose
+  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.72, 1.3, 12), bodyMat);
+  nose.rotation.x = Math.PI / 2;
+  nose.scale.set(1.2, 1, 0.55);
+  nose.position.set(0, 0.58, 1.35);
+  nose.castShadow = true;
+  group.add(nose);
+
+  // Side bumper pods (rounded)
+  const podGeo = new THREE.CapsuleGeometry(0.28, 1.4, 6, 10);
+  podGeo.rotateX(Math.PI / 2);
+  [-0.9, 0.9].forEach((px) => {
+    const pod = new THREE.Mesh(podGeo, accentMat);
+    pod.position.set(px, 0.5, 0);
+    pod.castShadow = true;
+    group.add(pod);
+  });
+
+  // Front rounded bumper
+  const bumper = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 1.5, 6, 10), accentMat);
+  bumper.rotation.z = Math.PI / 2;
+  bumper.position.set(0, 0.45, 1.85);
+  group.add(bumper);
+
+  // Steering Wheel
+  const steerCol = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.7, 8), chromeMat);
+  steerCol.position.set(0, 1.0, 0.55);
+  steerCol.rotation.x = -0.5;
+  const steerWheel = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.05, 8, 16), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+  steerWheel.position.set(0, 1.25, 0.35);
+  steerWheel.rotation.x = -0.5;
+  group.add(steerCol, steerWheel);
+
+  // Dual Exhaust Pipes at the back
+  [-0.42, 0.42].forEach((ex) => {
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.85, 10), chromeMat);
+    pipe.position.set(ex, 0.85, -1.55);
+    pipe.rotation.x = -0.65;
+    group.add(pipe);
+  });
 
   // Cute Headlights
-  const lightGeo = new THREE.SphereGeometry(0.18, 10, 10);
+  const lightGeo = new THREE.SphereGeometry(0.16, 10, 10);
   const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff59d });
-  [-0.65, 0.65].forEach((lx) => {
+  [-0.52, 0.52].forEach((lx) => {
     const hl = new THREE.Mesh(lightGeo, lightMat);
-    hl.position.set(lx, 0.78, 1.62);
+    hl.position.set(lx, 0.68, 1.72);
     group.add(hl);
   });
 
-  // Front bumper / accent
-  const bumperGeo = new THREE.BoxGeometry(2.1, 0.35, 0.5);
-  const accentMat = new THREE.MeshLambertMaterial({ color: cfg.accentColor });
-  const bumper = new THREE.Mesh(bumperGeo, accentMat);
-  bumper.position.set(0, 0.55, 1.55);
-  group.add(bumper);
-
-  // Spoiler
-  const spoilerGeo = new THREE.BoxGeometry(1.8, 0.15, 0.4);
-  const spoiler = new THREE.Mesh(spoilerGeo, accentMat);
-  spoiler.position.set(0, 1.3, -1.4);
+  // Rear Wing Spoiler with struts
+  const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.14, 0.45), accentMat);
+  spoiler.position.set(0, 1.38, -1.35);
   group.add(spoiler);
+  [-0.55, 0.55].forEach((sx) => {
+    const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.55, 0.2), chromeMat);
+    strut.position.set(sx, 1.08, -1.35);
+    group.add(strut);
+  });
 
-  // Wheels
-  const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.4, 12);
-  wheelGeo.rotateZ(Math.PI / 2);
-  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
-  const wheelPositions = [
-    [-1.1, 0.45, 1.0],
-    [1.1, 0.45, 1.0],
-    [-1.1, 0.45, -1.0],
-    [1.1, 0.45, -1.0],
+  // Chunky Go-Kart Wheels with Hubcaps (rear larger than front)
+  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x263238 });
+  const wheelSpecs = [
+    { x: -1.15, y: 0.42, z: 1.05, r: 0.42 },
+    { x: 1.15, y: 0.42, z: 1.05, r: 0.42 },
+    { x: -1.2, y: 0.52, z: -1.0, r: 0.52 },
+    { x: 1.2, y: 0.52, z: -1.0, r: 0.52 },
   ];
   const wheels = [];
-  wheelPositions.forEach(([x, y, z]) => {
-    const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.position.set(x, y, z);
-    w.castShadow = true;
-    group.add(w);
-    wheels.push(w);
+  wheelSpecs.forEach(({ x, y, z, r }) => {
+    const wGroup = new THREE.Group();
+    const tire = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.46, 14), wheelMat);
+    tire.rotation.z = Math.PI / 2;
+    tire.castShadow = true;
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.5, r * 0.5, 0.48, 10), chromeMat);
+    hub.rotation.z = Math.PI / 2;
+    wGroup.add(tire, hub);
+    wGroup.position.set(x, y, z);
+    group.add(wGroup);
+    wheels.push(wGroup);
   });
 
   // Cute Driver Head
@@ -159,6 +203,6 @@ export function createKartMesh(typeId, customColor = null, heroPhotoUrl = null) 
     group.add(sprite);
   }
 
-  group.userData = { wheels, body, bodyMat, baseColor: bodyColor, bubble };
+  group.userData = { wheels, body: tub, bodyMat, baseColor: bodyColor, bubble };
   return group;
 }
