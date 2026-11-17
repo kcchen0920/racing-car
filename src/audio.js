@@ -69,6 +69,11 @@ class SoundManager {
     this.playTone(180, 0.22, 'sine', 0.25, 380);
   }
 
+  playCoin() {
+    this.playTone(987, 0.08, 'sine', 0.22);
+    setTimeout(() => this.playTone(1318, 0.14, 'sine', 0.22), 65);
+  }
+
   playFinish() {
     const notes = [523, 659, 784, 1046];
     notes.forEach((n, i) => {

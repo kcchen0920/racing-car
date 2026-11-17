@@ -268,6 +268,39 @@ export function buildTrack(scene, themeId) {
     obstacles.push(obs);
   });
 
+  // Collectible Coins (⭐)
+  const coins = [];
+  const coinGeo = new THREE.CylinderGeometry(0.9, 0.9, 0.25, 14);
+  coinGeo.rotateX(Math.PI / 2);
+  const coinMat = new THREE.MeshPhongMaterial({ color: 0xffeb3b, shininess: 100 });
+  for (let i = 0; i < 16; i++) {
+    const t = (i + 0.5) / 16;
+    const pt = curve.getPointAt(t);
+    const tan = curve.getTangentAt(t).normalize();
+    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+    const offset = Math.sin(i * 1.3) * 3.8;
+    const coin = new THREE.Mesh(coinGeo, coinMat);
+    const pos = pt.clone().addScaledVector(norm, offset);
+    coin.position.set(pos.x, 1.4, pos.z);
+    coin.userData = { active: true, respawnTimer: 0 };
+    scene.add(coin);
+    coins.push(coin);
+  }
+
+  // Glowing Boost Pads (⚡)
+  const boostPads = [];
+  const padGeo = new THREE.BoxGeometry(4.5, 0.12, 6.0);
+  const padMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
+  [0.2, 0.5, 0.8].forEach((t) => {
+    const pt = curve.getPointAt(t);
+    const tan = curve.getTangentAt(t).normalize();
+    const pad = new THREE.Mesh(padGeo, padMat);
+    pad.position.set(pt.x, 0.08, pt.z);
+    pad.lookAt(pt.clone().add(tan));
+    scene.add(pad);
+    boostPads.push(pad);
+  });
+
   // Vivid Illustrated Animals & Plants around the track
   const animatedProps = [];
   for (let i = 0; i < 56; i++) {
@@ -296,5 +329,5 @@ export function buildTrack(scene, themeId) {
     });
   }
 
-  return { curve, roadWidth, itemBoxes, obstacles, theme, animatedProps };
+  return { curve, roadWidth, itemBoxes, obstacles, coins, boostPads, theme, animatedProps };
 }

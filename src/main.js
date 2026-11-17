@@ -6,11 +6,20 @@ import { sound } from './audio.js';
 
 let selectedKart = KART_TYPES[0].id;
 let selectedTrack = TRACK_THEMES[0].id;
+let selectedColor = 0xff5252;
+
+const CANDY_COLORS = [
+  { hex: 0xff5252, css: '#ff5252' },
+  { hex: 0x29b6f6, css: '#29b6f6' },
+  { hex: 0xffeb3b, css: '#ffeb3b' },
+  { hex: 0xff80ab, css: '#ff80ab' },
+];
 
 const menuEl = document.getElementById('menu-overlay');
 const finishEl = document.getElementById('finish-overlay');
 const hudEl = document.getElementById('hud');
 const lapBadge = document.getElementById('lap-badge');
+const coinBadge = document.getElementById('coin-badge');
 const countdownEl = document.getElementById('countdown');
 const itemBtn = document.getElementById('item-btn');
 
@@ -26,6 +35,19 @@ KART_TYPES.forEach((k) => {
     btn.classList.add('selected');
   };
   kartRow.appendChild(btn);
+});
+
+const colorRow = document.getElementById('color-choices');
+CANDY_COLORS.forEach((c, idx) => {
+  const dot = document.createElement('button');
+  dot.className = `color-dot ${idx === 0 ? 'selected' : ''}`;
+  dot.style.background = c.css;
+  dot.onclick = () => {
+    selectedColor = c.hex;
+    document.querySelectorAll('#color-choices .color-dot').forEach((d) => d.classList.remove('selected'));
+    dot.classList.add('selected');
+  };
+  colorRow.appendChild(dot);
 });
 
 const trackRow = document.getElementById('track-choices');
@@ -44,6 +66,9 @@ TRACK_THEMES.forEach((t) => {
 const game = new RacingGame(document.getElementById('game-container'), {
   onLapChange: (lap, total) => {
     lapBadge.textContent = `🏁 第 ${lap} / ${total} 圈`;
+  },
+  onCoinChange: (coins) => {
+    coinBadge.textContent = `⭐ ${coins}`;
   },
   onCountdown: (text) => {
     countdownEl.textContent = text;
@@ -69,7 +94,7 @@ function startGame() {
   menuEl.classList.add('hidden');
   finishEl.classList.add('hidden');
   hudEl.classList.remove('hidden');
-  game.start(selectedKart, selectedTrack);
+  game.start(selectedKart, selectedTrack, selectedColor);
 }
 
 document.getElementById('start-btn').onclick = startGame;

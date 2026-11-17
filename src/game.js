@@ -41,7 +41,7 @@ export class RacingGame {
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
   }
 
-  start(kartId, trackId) {
+  start(kartId, trackId, customColor = null) {
     // Clear previous scene
     while (this.scene.children.length > 0) {
       this.scene.remove(this.scene.children[0]);
@@ -62,7 +62,7 @@ export class RacingGame {
     this.track = buildTrack(this.scene, trackId);
 
     // Setup Player
-    const playerMesh = createKartMesh(kartId);
+    const playerMesh = createKartMesh(kartId, customColor);
     this.scene.add(playerMesh);
     this.player = {
       mesh: playerMesh,
@@ -71,6 +71,7 @@ export class RacingGame {
       speed: 0,
       baseSpeed: 0.00115, // progress per frame
       lap: 1,
+      coins: 0,
       item: null,
       boostTimer: 0,
       starTimer: 0,
@@ -98,6 +99,7 @@ export class RacingGame {
 
     this.running = false;
     this.callbacks.onLapChange(1, this.totalLaps);
+    this.callbacks.onCoinChange(0);
     this.callbacks.onItemChange(null);
 
     // 3-2-1-GO Countdown
@@ -245,6 +247,39 @@ export class RacingGame {
         ai.t = (ai.t + aiSpeed) % 1;
         this.updateKartTransform(ai);
       });
+
+      // Coin collisions
+      if (this.track.coins) {
+        this.track.coins.forEach((coin) => {
+          coin.rotation.y += 0.06;
+          if (!coin.userData.active) {
+            coin.userData.respawnTimer--;
+            if (coin.userData.respawnTimer <= 0) {
+              coin.userData.active = true;
+              coin.visible = true;
+            }
+            return;
+          }
+          if (coin.position.distanceTo(this.player.mesh.position) < 2.8) {
+            coin.userData.active = false;
+            coin.visible = false;
+            coin.userData.respawnTimer = 240;
+            this.player.coins++;
+            this.callbacks.onCoinChange(this.player.coins);
+            sound.playCoin();
+          }
+        });
+      }
+
+      // Boost Pad collisions
+      if (this.track.boostPads) {
+        this.track.boostPads.forEach((pad) => {
+          if (pad.position.distanceTo(this.player.mesh.position) < 3.6 && this.player.boostTimer < 30) {
+            this.player.boostTimer = 75;
+            sound.playBoost();
+          }
+        });
+      }
 
       // Obstacle collisions
       if (this.track.obstacles) {

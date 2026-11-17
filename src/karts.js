@@ -30,13 +30,14 @@ export const KART_TYPES = [
   },
 ];
 
-export function createKartMesh(typeId) {
+export function createKartMesh(typeId, customColor = null) {
   const cfg = KART_TYPES.find((k) => k.id === typeId) || KART_TYPES[0];
+  const bodyColor = customColor || cfg.bodyColor;
   const group = new THREE.Group();
 
   // Kart chassis (glossy toy look)
   const bodyGeo = new THREE.BoxGeometry(2.0, 0.7, 3.2);
-  const bodyMat = new THREE.MeshPhongMaterial({ color: cfg.bodyColor, shininess: 80 });
+  const bodyMat = new THREE.MeshPhongMaterial({ color: bodyColor, shininess: 80 });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = 0.7;
   body.castShadow = true;
@@ -148,6 +149,6 @@ export function createKartMesh(typeId) {
   bubble.visible = false;
   group.add(bubble);
 
-  group.userData = { wheels, body, bodyMat, baseColor: cfg.bodyColor, bubble };
+  group.userData = { wheels, body, bodyMat, baseColor: bodyColor, bubble };
   return group;
 }
