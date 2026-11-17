@@ -152,7 +152,7 @@ export class RacingGame {
 
     const maxOffset = this.track.roadWidth * 0.38;
     const pos = pt.clone().addScaledVector(norm, kart.lateral * maxOffset);
-    kart.mesh.position.set(pos.x, yOffset + 0.15, pos.z);
+    kart.mesh.position.set(pos.x, yOffset, pos.z);
 
     const lookTarget = pos.clone().add(tan);
     kart.mesh.lookAt(lookTarget);
