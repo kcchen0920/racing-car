@@ -1,4 +1,4 @@
-const CACHE_NAME = 'little-kart-v2';
+const CACHE_NAME = 'little-kart-v3';
 self.addEventListener('install', (e) => {
   self.skipWaiting();
 });

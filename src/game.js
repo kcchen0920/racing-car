@@ -254,7 +254,7 @@ export class RacingGame {
             coin.userData.respawnTimer = 240;
             this.player.coins++;
             this.callbacks.onCoinChange(this.player.coins);
-            sound.playCoin();
+            try { sound.playCoin(); } catch (_) {}
           }
         });
       }
