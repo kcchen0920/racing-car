@@ -220,8 +220,65 @@ export function buildTrack(scene, themeId) {
   archGroup.lookAt(startPt.clone().add(startTan));
   scene.add(archGroup);
 
-  // Item Boxes (?) (temporarily disabled for debugging)
+  // Item Boxes (?)
   const itemBoxes = [];
+  const boxGeo = new THREE.BoxGeometry(2.2, 2.2, 2.2);
+  const qCanvas = document.createElement('canvas');
+  qCanvas.width = 128;
+  qCanvas.height = 128;
+  const qCtx = qCanvas.getContext('2d');
+  qCtx.fillStyle = '#ffd54f';
+  qCtx.fillRect(0, 0, 128, 128);
+  qCtx.strokeStyle = '#ff8f00';
+  qCtx.lineWidth = 10;
+  qCtx.strokeRect(5, 5, 118, 118);
+  qCtx.fillStyle = '#ffffff';
+  qCtx.font = 'bold 84px sans-serif';
+  qCtx.textAlign = 'center';
+  qCtx.textBaseline = 'middle';
+  qCtx.fillText('?', 64, 68);
+  const boxMat = new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(qCanvas) });
+  [0.15, 0.35, 0.55, 0.75, 0.9].forEach((t) => {
+    const pt = curve.getPointAt(t);
+    const tan = curve.getTangentAt(t).normalize();
+    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+    [-3.5, 3.5].forEach((offset) => {
+      const box = new THREE.Mesh(boxGeo, boxMat.clone());
+      const pos = pt.clone().addScaledVector(norm, offset);
+      box.position.set(pos.x, 1.8, pos.z);
+      box.userData = { active: true, respawnTimer: 0 };
+      scene.add(box);
+      itemBoxes.push(box);
+    });
+  });
+
+  // 3D Fluffy Clouds & Background Hills
+  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  for (let c = 0; c < 12; c++) {
+    const cloud = new THREE.Group();
+    const angle = (c / 12) * Math.PI * 2;
+    const rad = 130 + (c % 3) * 35;
+    [-2.5, 0, 2.5].forEach((ox, idx) => {
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(idx === 1 ? 4.5 : 3.2, 10, 10), cloudMat);
+      puff.position.set(ox, idx === 1 ? 1 : 0, 0);
+      cloud.add(puff);
+    });
+    cloud.position.set(Math.cos(angle) * rad + 60, 32 + (c % 3) * 6, Math.sin(angle) * rad);
+    scene.add(cloud);
+  }
+
+  const hillColor = theme.id === 'desert' ? 0xfbc02d : theme.id === 'dino' ? 0x5d4037 : theme.id === 'underwater' ? 0x00838f : 0x689f38;
+  const hillMat = new THREE.MeshLambertMaterial({ color: hillColor });
+  for (let h = 0; h < 10; h++) {
+    const angle = (h / 10) * Math.PI * 2;
+    const rad = 185 + (h % 2) * 25;
+    const hill = new THREE.Mesh(
+      theme.id === 'desert' ? new THREE.ConeGeometry(22, 28, 4) : new THREE.ConeGeometry(26, 22, 10),
+      hillMat
+    );
+    hill.position.set(Math.cos(angle) * rad + 60, 10, Math.sin(angle) * rad);
+    scene.add(hill);
+  }
 
   // Interactive Road Obstacles (temporarily disabled for debugging)
   const obstacles = [];
