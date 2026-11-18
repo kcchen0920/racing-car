@@ -49,6 +49,12 @@ html, body {
   z-index: 1;
 }
 
+#game-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
 .overlay {
   position: fixed;
   inset: 0;
@@ -56,9 +62,11 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: safe center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: radial-gradient(circle at top, var(--bg-warm) 0%, var(--bg-sky) 100%);
-  padding: 20px;
+  padding: 20px 16px;
 }
 
 .hidden {
@@ -310,5 +318,33 @@ h1 {
   }
   .pick-btn, .upload-btn, .start-btn, .color-dot, .steer-hint {
     transition: none;
+  }
+}
+
+@media (max-width: 600px) {
+  #lap-badge, #coin-badge, #rank-badge {
+    font-size: 0.95rem;
+    padding: 6px 12px;
+  }
+
+  #coin-badge {
+    left: 16px;
+    top: 58px;
+  }
+
+  #rank-badge {
+    right: 74px;
+  }
+
+  .mute-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 1.25rem;
+  }
+
+  .steer-hint {
+    width: 58px;
+    height: 58px;
+    font-size: 1.6rem;
   }
 }

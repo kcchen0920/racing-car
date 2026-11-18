@@ -26,22 +26,42 @@ export class RacingGame {
     );
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.shadowMap.enabled = true;
+    this.renderer.domElement.style.display = 'block';
     container.appendChild(this.renderer.domElement);
+    this.onResize();
 
     window.addEventListener('resize', () => this.onResize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this.onResize(), 120));
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => this.onResize());
+    }
   }
 
   onResize() {
     if (!this.container) return;
-    this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
+    const w = this.container.clientWidth || window.innerWidth || 1;
+    const h = this.container.clientHeight || window.innerHeight || 1;
+    const aspect = w / h;
+
+    // Preserve horizontal field of view on portrait / narrow WebViews
+    const baseVFov = 72;
+    if (aspect < 1.25) {
+      const tanHalfH = Math.tan(THREE.MathUtils.degToRad(baseVFov / 2)) * 1.25;
+      const vFov = THREE.MathUtils.radToDeg(2 * Math.atan(tanHalfH / Math.max(0.45, aspect)));
+      this.camera.fov = Math.min(104, Math.max(baseVFov, vFov));
+    } else {
+      this.camera.fov = baseVFov;
+    }
+
+    this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+    this.renderer.setSize(w, h, false);
   }
 
   start(kartId, trackId, customColor = null, heroPhotoUrl = null) {
+    this.onResize();
     // Clear previous scene
     while (this.scene.children.length > 0) {
       this.scene.remove(this.scene.children[0]);
