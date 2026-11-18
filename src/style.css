@@ -187,7 +187,7 @@ h1 {
   pointer-events: none;
 }
 
-#lap-badge, #coin-badge {
+#lap-badge, #coin-badge, #rank-badge {
   position: absolute;
   top: 16px;
   background: rgba(255, 255, 255, 0.92);
@@ -206,6 +206,11 @@ h1 {
 #coin-badge {
   left: 175px;
   color: var(--sun-deep);
+}
+
+#rank-badge {
+  right: 80px;
+  color: #1565c0;
 }
 
 .mute-btn {

@@ -99,9 +99,11 @@ export class RacingGame {
     this.ais.forEach((ai) => this.updateKartTransform(ai));
 
     this.running = false;
+    this.lastReportedRank = -1;
     this.callbacks.onLapChange(1, this.totalLaps);
     this.callbacks.onCoinChange(0);
     this.callbacks.onItemChange(null);
+    this.callbacks.onRankChange?.(1 + this.ais.length, 1 + this.ais.length);
 
     // 3-2-1-GO Countdown
     this.runCountdown();
@@ -231,8 +233,10 @@ export class RacingGame {
 
       // Update AI with dynamic rubber-banding & Kart-to-Kart Physics Collision
       const playerProg = this.player.lap + this.player.t;
+      let aheadCount = 0;
       this.ais.forEach((ai) => {
         const aiProg = ai.lap + ai.t;
+        if (aiProg > playerProg) aheadCount++;
         let aiSpeed = ai.baseSpeed;
         if (aiProg < playerProg - 0.04) {
           aiSpeed *= 1.18; // catch up!
@@ -255,6 +259,12 @@ export class RacingGame {
           try { sound.playBoing(); } catch (_) {}
         }
       });
+
+      const currentRank = 1 + aheadCount;
+      if (currentRank !== this.lastReportedRank) {
+        this.lastReportedRank = currentRank;
+        this.callbacks.onRankChange?.(currentRank, 1 + this.ais.length);
+      }
 
       // Coin collisions
       if (this.track.coins) {

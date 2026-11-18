@@ -20,6 +20,7 @@ const finishEl = document.getElementById('finish-overlay');
 const hudEl = document.getElementById('hud');
 const lapBadge = document.getElementById('lap-badge');
 const coinBadge = document.getElementById('coin-badge');
+const rankBadge = document.getElementById('rank-badge');
 const countdownEl = document.getElementById('countdown');
 const itemBtn = document.getElementById('item-btn');
 
@@ -111,6 +112,10 @@ const game = new RacingGame(document.getElementById('game-container'), {
   },
   onCoinChange: (coins) => {
     coinBadge.textContent = `⭐ ${coins}`;
+  },
+  onRankChange: (rank, total) => {
+    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '🏆';
+    rankBadge.textContent = `${medal} 第 ${rank} / ${total} 名`;
   },
   onCountdown: (text) => {
     countdownEl.textContent = text;
