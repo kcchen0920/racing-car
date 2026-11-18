@@ -95,7 +95,7 @@ function createGroundTexture(baseColor, accentColor) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(24, 24);
+  tex.repeat.set(42, 42);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
@@ -103,27 +103,30 @@ function createGroundTexture(baseColor, accentColor) {
 export function buildTrack(scene, themeId) {
   const theme = TRACK_THEMES.find((t) => t.id === themeId) || TRACK_THEMES[0];
   scene.background = new THREE.Color(theme.skyColor);
-  scene.fog = new THREE.Fog(theme.skyColor, 150, 400);
+  scene.fog = new THREE.Fog(theme.skyColor, 200, 560);
 
   const points = [
     new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(0, 0, 105),
-    new THREE.Vector3(68, 0, 180),
-    new THREE.Vector3(165, 0, 165),
-    new THREE.Vector3(210, 0, 75),
-    new THREE.Vector3(172, 0, -30),
-    new THREE.Vector3(218, 0, -128),
-    new THREE.Vector3(142, 0, -202),
-    new THREE.Vector3(30, 0, -165),
-    new THREE.Vector3(-15, 0, -90),
+    new THREE.Vector3(0, 0, 165),
+    new THREE.Vector3(95, 0, 290),
+    new THREE.Vector3(245, 0, 275),
+    new THREE.Vector3(345, 0, 160),
+    new THREE.Vector3(285, 0, 35),
+    new THREE.Vector3(375, 0, -95),
+    new THREE.Vector3(330, 0, -245),
+    new THREE.Vector3(195, 0, -335),
+    new THREE.Vector3(45, 0, -285),
+    new THREE.Vector3(-85, 0, -330),
+    new THREE.Vector3(-155, 0, -210),
+    new THREE.Vector3(-75, 0, -110),
   ];
 
   const curve = new THREE.CatmullRomCurve3(points, true, 'catmullrom', 0.5);
   const roadWidth = 18;
-  const segments = 240;
+  const segments = 420;
 
   // Textured Ground
-  const groundGeo = new THREE.PlaneGeometry(800, 800);
+  const groundGeo = new THREE.PlaneGeometry(1500, 1500);
   const groundMat = new THREE.MeshLambertMaterial({
     map: createGroundTexture(theme.groundColor, theme.groundAccent),
   });
@@ -254,29 +257,29 @@ export function buildTrack(scene, themeId) {
 
   // 3D Fluffy Clouds & Background Hills
   const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  for (let c = 0; c < 12; c++) {
+  for (let c = 0; c < 16; c++) {
     const cloud = new THREE.Group();
-    const angle = (c / 12) * Math.PI * 2;
-    const rad = 130 + (c % 3) * 35;
+    const angle = (c / 16) * Math.PI * 2;
+    const rad = 220 + (c % 3) * 55;
     [-2.5, 0, 2.5].forEach((ox, idx) => {
       const puff = new THREE.Mesh(new THREE.SphereGeometry(idx === 1 ? 4.5 : 3.2, 10, 10), cloudMat);
       puff.position.set(ox, idx === 1 ? 1 : 0, 0);
       cloud.add(puff);
     });
-    cloud.position.set(Math.cos(angle) * rad + 60, 32 + (c % 3) * 6, Math.sin(angle) * rad);
+    cloud.position.set(Math.cos(angle) * rad + 100, 36 + (c % 3) * 8, Math.sin(angle) * rad - 20);
     scene.add(cloud);
   }
 
   const hillColor = theme.id === 'desert' ? 0xfbc02d : theme.id === 'dino' ? 0x5d4037 : theme.id === 'underwater' ? 0x00838f : 0x689f38;
   const hillMat = new THREE.MeshLambertMaterial({ color: hillColor });
-  for (let h = 0; h < 10; h++) {
-    const angle = (h / 10) * Math.PI * 2;
-    const rad = 185 + (h % 2) * 25;
+  for (let h = 0; h < 14; h++) {
+    const angle = (h / 14) * Math.PI * 2;
+    const rad = 320 + (h % 2) * 45;
     const hill = new THREE.Mesh(
-      theme.id === 'desert' ? new THREE.ConeGeometry(22, 28, 4) : new THREE.ConeGeometry(26, 22, 10),
+      theme.id === 'desert' ? new THREE.ConeGeometry(28, 36, 4) : new THREE.ConeGeometry(34, 28, 10),
       hillMat
     );
-    hill.position.set(Math.cos(angle) * rad + 60, 10, Math.sin(angle) * rad);
+    hill.position.set(Math.cos(angle) * rad + 100, 14, Math.sin(angle) * rad - 20);
     scene.add(hill);
   }
 
@@ -288,8 +291,8 @@ export function buildTrack(scene, themeId) {
   const coinGeo = new THREE.CylinderGeometry(0.9, 0.9, 0.25, 14);
   coinGeo.rotateX(Math.PI / 2);
   const coinMat = new THREE.MeshPhongMaterial({ color: 0xffeb3b, shininess: 100 });
-  for (let i = 0; i < 16; i++) {
-    const t = (i + 0.5) / 16;
+  for (let i = 0; i < 28; i++) {
+    const t = (i + 0.5) / 28;
     const pt = curve.getPointAt(t);
     const tan = curve.getTangentAt(t).normalize();
     const norm = new THREE.Vector3(-tan.z, 0, tan.x);
@@ -306,8 +309,8 @@ export function buildTrack(scene, themeId) {
 
   // Vivid Illustrated Animals & Plants around the track
   const animatedProps = [];
-  for (let i = 0; i < 56; i++) {
-    const t = i / 56;
+  for (let i = 0; i < 88; i++) {
+    const t = i / 88;
     const pt = curve.getPointAt(t);
     const tan = curve.getTangentAt(t).normalize();
     const norm = new THREE.Vector3(-tan.z, 0, tan.x);

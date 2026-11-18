@@ -69,7 +69,7 @@ export class RacingGame {
       t: 0,
       lateral: 0, // -1 to 1 across roadWidth
       speed: 0,
-      baseSpeed: 0.00135, // progress per frame
+      baseSpeed: 0.00052, // relaxed kid-friendly speed for longer track
       lap: 1,
       coins: 0,
       item: null,
@@ -90,7 +90,7 @@ export class RacingGame {
         mesh,
         t: 0.01 * (idx + 1),
         lateral: ((idx % 3) - 1) * 0.45,
-        baseSpeed: 0.00122 + (idx % 4) * 0.00006,
+        baseSpeed: 0.00046 + (idx % 4) * 0.000025,
         lap: 1,
       };
     });
