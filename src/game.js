@@ -41,6 +41,9 @@ export class RacingGame {
 
   onResize() {
     if (!this.container) return;
+    if (window.scrollX !== 0 || window.scrollY !== 0) {
+      window.scrollTo(0, 0);
+    }
     const w = this.container.clientWidth || window.innerWidth || 1;
     const h = this.container.clientHeight || window.innerHeight || 1;
     const aspect = w / h;

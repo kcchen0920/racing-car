@@ -197,14 +197,43 @@ touchRight.addEventListener('pointercancel', stopSteer);
 touchRight.addEventListener('pointerleave', stopSteer);
 
 const muteBtn = document.getElementById('mute-btn');
-muteBtn.onclick = () => {
+muteBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
   sound.muted = !sound.muted;
   muteBtn.textContent = sound.muted ? '🔇' : '🔊';
-};
+});
 
 itemBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
   e.stopPropagation();
   game.useItem();
+});
+
+// Prevent iOS Safari pinch-to-zoom, double-tap zoom, and viewport shift during gameplay
+const preventDefault = (e) => e.preventDefault();
+['gesturestart', 'gesturechange', 'gestureend'].forEach((evt) => {
+  document.addEventListener(evt, preventDefault, { passive: false });
+});
+
+document.addEventListener(
+  'touchstart',
+  (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+  },
+  { passive: false }
+);
+document.addEventListener(
+  'touchmove',
+  (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+  },
+  { passive: false }
+);
+
+[hudEl, document.getElementById('game-container')].forEach((el) => {
+  el.addEventListener('touchstart', preventDefault, { passive: false });
+  el.addEventListener('touchmove', preventDefault, { passive: false });
 });
 
 // Keyboard support (for desktop testing)
