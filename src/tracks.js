@@ -8,26 +8,42 @@ export const TRACK_THEMES = [
     skyColor: 0x81d4fa,
     groundColor: '#8bc34a',
     groundAccent: '#7cb342',
-    roadColor: '#607d8b',
+    roadColor: '#546e7a',
     curbColorA: 0xff5252,
     curbColorB: 0xffeb3b,
     animals: ['🦁', '🐘', '🦒', '🐼', '🐒', '🦓'],
     plants: ['🌳', '🌻', '🌷', '🎈'],
     obstacles: ['🍌', '🪵'],
+    lighting: {
+      sunColor: 0xfffde7,
+      sunIntensity: 1.3,
+      sunOffset: [50, 90, 50],
+      hemiSky: 0xd4f1ff,
+      hemiGround: 0x7cb342,
+      fogDensity: 0.0017,
+    },
   },
   {
     id: 'dino',
     name: '恐龍世界',
     emoji: '🦕',
-    skyColor: 0xffcc80,
+    skyColor: 0xffb74d,
     groundColor: '#558b2f',
     groundAccent: '#33691e',
-    roadColor: '#8d6e63',
+    roadColor: '#795548',
     curbColorA: 0xff7043,
     curbColorB: 0xaed581,
     animals: ['🦕', '🦖', '🐊', '🥚'],
     plants: ['🌴', '🌿', '🌋', '🍄'],
     obstacles: ['🪨', '🪵'],
+    lighting: {
+      sunColor: 0xffcc80,
+      sunIntensity: 1.4,
+      sunOffset: [-75, 50, 40],
+      hemiSky: 0xffe0b2,
+      hemiGround: 0x4e342e,
+      fogDensity: 0.0021,
+    },
   },
   {
     id: 'desert',
@@ -36,26 +52,42 @@ export const TRACK_THEMES = [
     skyColor: 0x4fc3f7,
     groundColor: '#ffd54f',
     groundAccent: '#ffca28',
-    roadColor: '#d7ccc8',
+    roadColor: '#bcaaa4',
     curbColorA: 0xffa726,
     curbColorB: 0xffffff,
     animals: ['🐪', '🦎', '🦅'],
     plants: ['🌵', '🌴', '☀️'],
     obstacles: ['🌵', '🪨'],
+    lighting: {
+      sunColor: 0xfff8e1,
+      sunIntensity: 1.45,
+      sunOffset: [28, 115, 25],
+      hemiSky: 0xb3e5fc,
+      hemiGround: 0xffb300,
+      fogDensity: 0.0015,
+    },
   },
   {
     id: 'underwater',
     name: '水中世界',
     emoji: '🐠',
-    skyColor: 0x00acc1,
+    skyColor: 0x0097a7,
     groundColor: '#26c6da',
     groundAccent: '#00bcd4',
-    roadColor: '#80deea',
+    roadColor: '#4dd0e1',
     curbColorA: 0xff4081,
     curbColorB: 0xffeb3b,
     animals: ['🐠', '🐡', '🐢', '🐙', '🐬', '🪼'],
     plants: ['🪸', '🫧', '🐚'],
     obstacles: ['🦀', '🐚'],
+    lighting: {
+      sunColor: 0x80deea,
+      sunIntensity: 1.15,
+      sunOffset: [15, 105, -20],
+      hemiSky: 0x84ffff,
+      hemiGround: 0x006064,
+      fogDensity: 0.0026,
+    },
   },
 ];
 
@@ -118,10 +150,99 @@ function createSkyDomeTexture(skyHex) {
   return tex;
 }
 
+function createRoadTexture(themeId, baseColor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  // Base road surface
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Procedural realistic grain / surface detail
+  for (let i = 0; i < 2400; i++) {
+    const x = (i * 73) % 512;
+    const y = (i * 197 + Math.floor(i / 5) * 11) % 512;
+    const bright = i % 2 === 0;
+    ctx.fillStyle = bright ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)';
+    ctx.fillRect(x, y, 3, 3);
+  }
+
+  if (themeId === 'underwater') {
+    // Luminous underwater caustic ripples
+    ctx.strokeStyle = 'rgba(224, 247, 250, 0.25)';
+    ctx.lineWidth = 5;
+    for (let k = 0; k < 10; k++) {
+      ctx.beginPath();
+      ctx.arc((k * 89) % 512, (k * 131) % 512, 34 + (k % 3) * 14, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  } else if (themeId === 'desert') {
+    // Wind-blown sand ripples across sandstone road
+    ctx.fillStyle = 'rgba(255, 243, 224, 0.14)';
+    for (let y = 0; y < 512; y += 32) {
+      ctx.fillRect(0, y, 512, 7);
+    }
+  } else if (themeId === 'dino') {
+    // Subtle cobblestone / dirt tire tracks
+    ctx.fillStyle = 'rgba(62, 39, 35, 0.14)';
+    ctx.fillRect(110, 0, 62, 512);
+    ctx.fillRect(340, 0, 62, 512);
+  } else {
+    // Asphalt worn racing lines
+    ctx.fillStyle = 'rgba(30, 40, 46, 0.16)';
+    ctx.fillRect(108, 0, 68, 512);
+    ctx.fillRect(336, 0, 68, 512);
+  }
+
+  // Crisp outer white sidelines
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+  ctx.fillRect(18, 0, 12, 512);
+  ctx.fillRect(482, 0, 12, 512);
+
+  // Center dashed lane divider
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+  ctx.fillRect(249, 28, 14, 180);
+  ctx.fillRect(249, 284, 14, 180);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function createChevronSignTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffeb3b';
+  ctx.fillRect(0, 0, 128, 128);
+  ctx.strokeStyle = '#263238';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(5, 5, 118, 118);
+  ctx.fillStyle = '#263238';
+  ctx.beginPath();
+  ctx.moveTo(34, 22);
+  ctx.lineTo(96, 64);
+  ctx.lineTo(34, 106);
+  ctx.lineTo(34, 82);
+  ctx.lineTo(64, 64);
+  ctx.lineTo(34, 46);
+  ctx.closePath();
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export function buildTrack(scene, themeId) {
   const theme = TRACK_THEMES.find((t) => t.id === themeId) || TRACK_THEMES[0];
   scene.background = new THREE.Color(theme.skyColor);
-  scene.fog = new THREE.FogExp2(theme.skyColor, 0.002);
+  scene.fog = new THREE.FogExp2(theme.skyColor, theme.lighting?.fogDensity || 0.002);
 
   // Gradient Sky Dome
   const skyDome = new THREE.Mesh(
@@ -155,10 +276,12 @@ export function buildTrack(scene, themeId) {
   const roadWidth = 18;
   const segments = 420;
 
-  // Textured Ground
-  const groundGeo = new THREE.PlaneGeometry(1500, 1500);
-  const groundMat = new THREE.MeshLambertMaterial({
+  // Textured Ground (PBR matte surface)
+  const groundGeo = new THREE.PlaneGeometry(1600, 1600);
+  const groundMat = new THREE.MeshStandardMaterial({
     map: createGroundTexture(theme.groundColor, theme.groundAccent),
+    roughness: 0.92,
+    metalness: 0.0,
   });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
@@ -166,61 +289,146 @@ export function buildTrack(scene, themeId) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Road segments + dashed center line
-  const trackGroup = new THREE.Group();
-  const roadMat = new THREE.MeshLambertMaterial({ color: theme.roadColor, side: THREE.DoubleSide });
-  const dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  // Merged Single-Geometry UV-Mapped Road Ribbon (1 draw call instead of 420!)
+  const positions = new Float32Array((segments + 1) * 2 * 3);
+  const uvs = new Float32Array((segments + 1) * 2 * 2);
+  const indices = [];
+  const uvRepeatAlongTrack = 88;
 
-  for (let i = 0; i < segments; i++) {
+  for (let i = 0; i <= segments; i++) {
+    const t = (i % segments) / segments;
+    const p = curve.getPointAt(t);
+    const tangent = curve.getTangentAt(t).normalize();
+    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
+
+    const leftX = p.x + normal.x * (roadWidth / 2);
+    const leftZ = p.z + normal.z * (roadWidth / 2);
+    const rightX = p.x - normal.x * (roadWidth / 2);
+    const rightZ = p.z - normal.z * (roadWidth / 2);
+
+    const vi = i * 6;
+    positions[vi] = leftX;
+    positions[vi + 1] = 0.02;
+    positions[vi + 2] = leftZ;
+    positions[vi + 3] = rightX;
+    positions[vi + 4] = 0.02;
+    positions[vi + 5] = rightZ;
+
+    const ui = i * 4;
+    const vCoord = (i / segments) * uvRepeatAlongTrack;
+    uvs[ui] = 0;
+    uvs[ui + 1] = vCoord;
+    uvs[ui + 2] = 1;
+    uvs[ui + 3] = vCoord;
+
+    if (i < segments) {
+      const a = i * 2;
+      const b = a + 1;
+      const c = a + 2;
+      const d = a + 3;
+      indices.push(a, b, c, b, d, c);
+    }
+  }
+
+  const roadGeo = new THREE.BufferGeometry();
+  roadGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  roadGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  roadGeo.setIndex(indices);
+  roadGeo.computeVertexNormals();
+
+  const roadTex = createRoadTexture(theme.id, theme.roadColor);
+  const roadMat = new THREE.MeshStandardMaterial({
+    map: roadTex,
+    roughness: theme.id === 'underwater' ? 0.35 : 0.78,
+    metalness: theme.id === 'underwater' ? 0.12 : 0.04,
+    side: THREE.DoubleSide,
+  });
+  const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+  roadMesh.receiveShadow = true;
+  scene.add(roadMesh);
+
+  // Instanced Curbs (2 draw calls instead of 280!)
+  const curbGeo = new THREE.BoxGeometry(1.2, 0.42, 2.5);
+  const curbMatA = new THREE.MeshStandardMaterial({ color: theme.curbColorA, roughness: 0.6 });
+  const curbMatB = new THREE.MeshStandardMaterial({ color: theme.curbColorB, roughness: 0.6 });
+  const matricesA = [];
+  const matricesB = [];
+  const dummy = new THREE.Object3D();
+
+  // Also place Corner Chevron Signs automatically on the outside of sharp bends
+  const chevronTex = createChevronSignTexture();
+  const chevronMat = new THREE.MeshStandardMaterial({ map: chevronTex, roughness: 0.4 });
+  const chevronGeo = new THREE.BoxGeometry(2.6, 1.8, 0.25);
+  const postGeo = new THREE.CylinderGeometry(0.14, 0.14, 2.2, 6);
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x455a64, metalness: 0.5, roughness: 0.4 });
+  let lastSignIdx = -12;
+
+  for (let i = 0; i < segments; i += 3) {
     const t1 = i / segments;
-    const t2 = (i + 1) / segments;
+    const t2 = ((i + 1) % segments) / segments;
     const p1 = curve.getPointAt(t1);
     const p2 = curve.getPointAt(t2);
     const tangent = curve.getTangentAt(t1).normalize();
     const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
 
-    const v1 = p1.clone().addScaledVector(normal, roadWidth / 2);
-    const v2 = p1.clone().addScaledVector(normal, -roadWidth / 2);
-    const v3 = p2.clone().addScaledVector(normal, roadWidth / 2);
-    const v4 = p2.clone().addScaledVector(normal, -roadWidth / 2);
+    const targetList = i % 6 === 0 ? matricesA : matricesB;
+    [-roadWidth / 2 - 0.6, roadWidth / 2 + 0.6].forEach((offset) => {
+      dummy.position.set(p1.x + normal.x * offset, 0.2, p1.z + normal.z * offset);
+      dummy.lookAt(p2.x + normal.x * offset, 0.2, p2.z + normal.z * offset);
+      dummy.updateMatrix();
+      targetList.push(dummy.matrix.clone());
+    });
 
-    const geo = new THREE.BufferGeometry();
-    const vertices = new Float32Array([
-      v1.x, 0.02, v1.z,
-      v2.x, 0.02, v2.z,
-      v3.x, 0.02, v3.z,
-      v2.x, 0.02, v2.z,
-      v4.x, 0.02, v4.z,
-      v3.x, 0.02, v3.z,
-    ]);
-    geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geo.computeVertexNormals();
-
-    const mesh = new THREE.Mesh(geo, roadMat);
-    mesh.receiveShadow = true;
-    trackGroup.add(mesh);
-
-    if (i % 4 === 0) {
-      const dash = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 1.8), dashMat);
-      dash.position.set(p1.x, 0.05, p1.z);
-      dash.lookAt(p2);
-      trackGroup.add(dash);
-    }
-
-    if (i % 3 === 0) {
-      const curbColor = i % 6 === 0 ? theme.curbColorA : theme.curbColorB;
-      const curbGeo = new THREE.BoxGeometry(1.2, 0.4, 2.2);
-      const curbMat = new THREE.MeshLambertMaterial({ color: curbColor });
-      [-roadWidth / 2 - 0.6, roadWidth / 2 + 0.6].forEach((offset) => {
-        const curb = new THREE.Mesh(curbGeo, curbMat);
-        const pos = p1.clone().addScaledVector(normal, offset);
-        curb.position.set(pos.x, 0.2, pos.z);
-        curb.lookAt(p2.clone().addScaledVector(normal, offset));
-        trackGroup.add(curb);
-      });
+    // Check sharpness of bend for corner chevron signs
+    if (i - lastSignIdx >= 12) {
+      const tNext = ((i + 8) % segments) / segments;
+      const tanNext = curve.getTangentAt(tNext).normalize();
+      const crossY = tangent.z * tanNext.x - tangent.x * tanNext.z;
+      if (Math.abs(crossY) > 0.12) {
+        lastSignIdx = i;
+        const outsideSide = crossY > 0 ? 1 : -1;
+        const signDist = roadWidth / 2 + 2.8;
+        const sx = p1.x + normal.x * outsideSide * signDist;
+        const sz = p1.z + normal.z * outsideSide * signDist;
+        const signGroup = new THREE.Group();
+        const post = new THREE.Mesh(postGeo, postMat);
+        post.position.y = 1.1;
+        const board = new THREE.Mesh(chevronGeo, chevronMat);
+        board.position.y = 2.4;
+        if (outsideSide < 0) board.rotation.y = Math.PI;
+        signGroup.add(post, board);
+        signGroup.position.set(sx, 0, sz);
+        signGroup.lookAt(sx - tangent.x, 0, sz - tangent.z);
+        scene.add(signGroup);
+      }
     }
   }
-  scene.add(trackGroup);
+
+  const instCurbA = new THREE.InstancedMesh(curbGeo, curbMatA, matricesA.length);
+  const instCurbB = new THREE.InstancedMesh(curbGeo, curbMatB, matricesB.length);
+  matricesA.forEach((m, idx) => instCurbA.setMatrixAt(idx, m));
+  matricesB.forEach((m, idx) => instCurbB.setMatrixAt(idx, m));
+  instCurbA.receiveShadow = true;
+  instCurbB.receiveShadow = true;
+  instCurbA.frustumCulled = false;
+  instCurbB.frustumCulled = false;
+  scene.add(instCurbA, instCurbB);
+
+  // Starting Grid Painted Marks behind Start/Finish Arch
+  const gridMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+  const gridGeo = new THREE.PlaneGeometry(2.6, 0.5);
+  gridGeo.rotateX(-Math.PI / 2);
+  for (let g = 0; g < 6; g++) {
+    const gt = ((1 - 0.004 * (g + 1)) % 1 + 1) % 1;
+    const gp = curve.getPointAt(gt);
+    const gtan = curve.getTangentAt(gt).normalize();
+    const gnorm = new THREE.Vector3(-gtan.z, 0, gtan.x);
+    const laneOffset = g % 2 === 0 ? -3.4 : 3.4;
+    const mark = new THREE.Mesh(gridGeo, gridMat);
+    mark.position.set(gp.x + gnorm.x * laneOffset, 0.04, gp.z + gnorm.z * laneOffset);
+    mark.lookAt(mark.position.x + gtan.x, 0.04, mark.position.z + gtan.z);
+    scene.add(mark);
+  }
 
   // Start/Finish Arch
   const startPt = curve.getPointAt(0);
@@ -285,18 +493,162 @@ export function buildTrack(scene, themeId) {
     });
   });
 
-  // Background Hills
-  const hillColor = theme.id === 'desert' ? 0xfbc02d : theme.id === 'dino' ? 0x5d4037 : theme.id === 'underwater' ? 0x00838f : 0x689f38;
-  const hillMat = new THREE.MeshLambertMaterial({ color: hillColor });
-  for (let h = 0; h < 14; h++) {
-    const angle = (h / 14) * Math.PI * 2;
-    const rad = 320 + (h % 2) * 45;
-    const hill = new THREE.Mesh(
-      theme.id === 'desert' ? new THREE.ConeGeometry(28, 36, 4) : new THREE.ConeGeometry(34, 28, 10),
-      hillMat
-    );
-    hill.position.set(Math.cos(angle) * rad + 100, 14, Math.sin(angle) * rad - 20);
+  // Two-Layer Depth Mountains (Inner Rolling Hills + Taller Misty Outer Peaks)
+  const innerHillColor =
+    theme.id === 'desert'
+      ? 0xfbc02d
+      : theme.id === 'dino'
+      ? 0x5d4037
+      : theme.id === 'underwater'
+      ? 0x00838f
+      : 0x689f38;
+  const outerHillColor =
+    theme.id === 'desert'
+      ? 0xf57f17
+      : theme.id === 'dino'
+      ? 0x3e2723
+      : theme.id === 'underwater'
+      ? 0x006064
+      : 0x455a64;
+  const innerHillMat = new THREE.MeshStandardMaterial({ color: innerHillColor, roughness: 0.9 });
+  const outerHillMat = new THREE.MeshStandardMaterial({ color: outerHillColor, roughness: 0.92 });
+  const hillGeo =
+    theme.id === 'desert' ? new THREE.ConeGeometry(34, 38, 4) : new THREE.ConeGeometry(42, 34, 10);
+  const outerGeo = new THREE.ConeGeometry(62, 74, 8);
+
+  for (let h = 0; h < 16; h++) {
+    const angle = (h / 16) * Math.PI * 2;
+    const rad = 310 + (h % 2) * 42;
+    const hill = new THREE.Mesh(hillGeo, innerHillMat);
+    const sc = 0.85 + (h % 3) * 0.25;
+    hill.scale.set(sc, sc, sc);
+    hill.position.set(Math.cos(angle) * rad + 95, 15 * sc, Math.sin(angle) * rad - 20);
     scene.add(hill);
+  }
+  for (let h = 0; h < 18; h++) {
+    const angle = (h / 18) * Math.PI * 2 + 0.17;
+    const rad = 435 + (h % 3) * 35;
+    const peak = new THREE.Mesh(outerGeo, outerHillMat);
+    const sc = 0.9 + (h % 3) * 0.3;
+    peak.scale.set(sc, sc, sc);
+    peak.position.set(Math.cos(angle) * rad + 95, 32 * sc, Math.sin(angle) * rad - 20);
+    scene.add(peak);
+  }
+
+  // 3D Procedural Scenery via InstancedMesh (Trees, Palms, Cacti, Corals, Boulders, Grandstand, Oasis, God Rays)
+  const sceneryCount = 64;
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.9 });
+  const foliageColor =
+    theme.id === 'dino' ? 0x33691e : theme.id === 'desert' ? 0x43a047 : theme.id === 'underwater' ? 0xff7043 : 0x43a047;
+  const foliageMat = new THREE.MeshStandardMaterial({ color: foliageColor, roughness: 0.72 });
+  const trunkGeo =
+    theme.id === 'underwater'
+      ? new THREE.CylinderGeometry(0.45, 0.9, 5.5, 7)
+      : new THREE.CylinderGeometry(0.45, 0.75, 4.8, 7);
+  const crownGeo =
+    theme.id === 'desert'
+      ? new THREE.CapsuleGeometry(0.75, 3.2, 5, 8)
+      : theme.id === 'underwater'
+      ? new THREE.DodecahedronGeometry(2.4, 0)
+      : new THREE.SphereGeometry(2.7, 9, 8);
+
+  const instTrunks = new THREE.InstancedMesh(trunkGeo, trunkMat, sceneryCount);
+  const instCrowns = new THREE.InstancedMesh(crownGeo, foliageMat, sceneryCount);
+  const rockMat = new THREE.MeshStandardMaterial({
+    color: theme.id === 'desert' ? 0xd7ccc8 : theme.id === 'underwater' ? 0x00838f : 0x78909c,
+    roughness: 0.88,
+  });
+  const instRocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1.9, 0), rockMat, 36);
+
+  const sDummy = new THREE.Object3D();
+  for (let i = 0; i < sceneryCount; i++) {
+    const t = (i + 0.25) / sceneryCount;
+    const pt = curve.getPointAt(t);
+    const tan = curve.getTangentAt(t).normalize();
+    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+    const side = i % 2 === 0 ? 1 : -1;
+    const dist = roadWidth / 2 + 8.5 + (i % 5) * 4.5;
+    const sx = pt.x + norm.x * side * dist;
+    const sz = pt.z + norm.z * side * dist;
+    const sc = 0.85 + (i % 4) * 0.22;
+
+    sDummy.position.set(sx, 2.3 * sc, sz);
+    sDummy.rotation.set(0, i * 1.1, 0);
+    sDummy.scale.set(sc, sc, sc);
+    sDummy.updateMatrix();
+    instTrunks.setMatrixAt(i, sDummy.matrix);
+
+    sDummy.position.set(sx, (theme.id === 'desert' ? 2.4 : 5.4) * sc, sz);
+    sDummy.scale.set(sc, sc * (theme.id === 'dino' ? 0.65 : 1.0), sc);
+    sDummy.updateMatrix();
+    instCrowns.setMatrixAt(i, sDummy.matrix);
+  }
+  for (let i = 0; i < 36; i++) {
+    const t = (i + 0.6) / 36;
+    const pt = curve.getPointAt(t);
+    const tan = curve.getTangentAt(t).normalize();
+    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+    const side = i % 2 === 0 ? -1 : 1;
+    const dist = roadWidth / 2 + 7.5 + (i % 4) * 3.8;
+    const sc = 0.7 + (i % 3) * 0.45;
+    sDummy.position.set(pt.x + norm.x * side * dist, 0.8 * sc, pt.z + norm.z * side * dist);
+    sDummy.rotation.set(i * 0.5, i * 0.9, i * 0.3);
+    sDummy.scale.set(sc * 1.2, sc * 0.75, sc);
+    sDummy.updateMatrix();
+    instRocks.setMatrixAt(i, sDummy.matrix);
+  }
+  instTrunks.castShadow = true;
+  instCrowns.castShadow = true;
+  instRocks.castShadow = true;
+  instTrunks.frustumCulled = false;
+  instCrowns.frustumCulled = false;
+  instRocks.frustumCulled = false;
+  scene.add(instTrunks, instCrowns, instRocks);
+
+  // Special 3D Theme Set-Pieces (Grandstand, Oasis Pool, Underwater God Rays)
+  if (theme.id === 'zoo') {
+    // Colorful Spectator Grandstand beside Start Line
+    const stand = new THREE.Group();
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.5 });
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.4 });
+    const steps = new THREE.Mesh(new THREE.BoxGeometry(6, 3.6, 22), baseMat);
+    steps.position.set(0, 1.8, 0);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.6, 23), roofMat);
+    roof.position.set(0, 6.2, 0);
+    roof.rotation.z = -0.12;
+    stand.add(steps, roof);
+    stand.position.set(startPt.x + roadWidth / 2 + 12, 0, startPt.z + 6);
+    scene.add(stand);
+  } else if (theme.id === 'desert') {
+    // Reflective Oasis Water Pool inside track loop
+    const oasis = new THREE.Mesh(
+      new THREE.CircleGeometry(38, 28),
+      new THREE.MeshStandardMaterial({
+        color: 0x29b6f6,
+        roughness: 0.12,
+        metalness: 0.45,
+      })
+    );
+    oasis.rotation.x = -Math.PI / 2;
+    oasis.position.set(120, -0.1, 45);
+    scene.add(oasis);
+  } else if (theme.id === 'underwater') {
+    // Translucent Diagonal Underwater Light Shafts (God Rays)
+    const rayGeo = new THREE.CylinderGeometry(5, 14, 95, 10, 1, true);
+    const rayMat = new THREE.MeshBasicMaterial({
+      color: 0xe0f7fa,
+      transparent: true,
+      opacity: 0.14,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    for (let r = 0; r < 6; r++) {
+      const ang = (r / 6) * Math.PI * 2;
+      const ray = new THREE.Mesh(rayGeo, rayMat);
+      ray.position.set(Math.cos(ang) * 140 + 95, 42, Math.sin(ang) * 140 - 20);
+      ray.rotation.z = 0.24;
+      scene.add(ray);
+    }
   }
 
   // 3D Theme Landmarks + Moving Fluffy Clouds + Glowing Sun

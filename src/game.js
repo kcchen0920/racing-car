@@ -64,10 +64,15 @@ export class RacingGame {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
     this.renderer.domElement.style.display = 'block';
     container.appendChild(this.renderer.domElement);
+    this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+    this.envRT = null;
+    this.dirLight = null;
+    this.sunOffset = new THREE.Vector3(50, 90, 50);
     this.onResize();
 
     window.addEventListener('resize', () => this.onResize());
@@ -152,6 +157,7 @@ export class RacingGame {
 
     this.scene.background = new THREE.Color(0xfff9f0);
     this.scene.fog = null;
+    this.applyEnvironmentMap(0xfff9f0, 0xb2ebf2);
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0xb2ebf2, 1.25);
     this.scene.add(hemi);
@@ -177,7 +183,34 @@ export class RacingGame {
     this.rafId = requestAnimationFrame((t) => this.animate(t));
   }
 
+  applyEnvironmentMap(skyHex = 0x81d4fa, groundHex = 0x7cb342) {
+    if (this.envRT) {
+      this.envRT.dispose();
+      this.envRT = null;
+    }
+    const envScene = new THREE.Scene();
+    envScene.background = new THREE.Color(skyHex);
+    const hemi = new THREE.HemisphereLight(0xffffff, groundHex, 1.5);
+    envScene.add(hemi);
+    const sunDisc = new THREE.Mesh(
+      new THREE.SphereGeometry(4, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xfffde7 })
+    );
+    sunDisc.position.set(14, 18, 12);
+    envScene.add(sunDisc);
+    this.envRT = this.pmremGenerator.fromScene(envScene, 0.04);
+    this.scene.environment = this.envRT.texture;
+    sunDisc.geometry.dispose();
+    sunDisc.material.dispose();
+  }
+
   disposeScene() {
+    this.dirLight = null;
+    if (this.envRT) {
+      this.envRT.dispose();
+      this.envRT = null;
+      this.scene.environment = null;
+    }
     const disposedGeos = new Set();
     const disposedMats = new Set();
     const disposedTexs = new Set();
@@ -474,19 +507,37 @@ export class RacingGame {
     this.lastFrameTime = performance.now();
     this.onResize();
 
-    // Lights
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x5d6d7e, 1.15);
-    this.scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xfffde7, 1.05);
-    dir.position.set(60, 120, 60);
-    dir.castShadow = true;
-    dir.shadow.camera.left = -160;
-    dir.shadow.camera.right = 160;
-    dir.shadow.camera.top = 160;
-    dir.shadow.camera.bottom = -160;
-    this.scene.add(dir);
-
     this.track = buildTrack(this.scene, trackId);
+
+    // Per-Track Realistic Lighting + Follow-Shadow Directional Light + Sky IBL
+    const lightCfg = this.track.theme?.lighting || {
+      sunColor: 0xfffde7,
+      sunIntensity: 1.3,
+      sunOffset: [50, 90, 50],
+      hemiSky: 0xd4f1ff,
+      hemiGround: 0x5d6d7e,
+    };
+    this.applyEnvironmentMap(this.track.theme?.skyColor || 0x81d4fa, lightCfg.hemiGround);
+    const hemi = new THREE.HemisphereLight(lightCfg.hemiSky, lightCfg.hemiGround, 1.1);
+    this.scene.add(hemi);
+
+    this.sunOffset.set(lightCfg.sunOffset[0], lightCfg.sunOffset[1], lightCfg.sunOffset[2]);
+    const dir = new THREE.DirectionalLight(lightCfg.sunColor, lightCfg.sunIntensity);
+    dir.position.copy(this.sunOffset);
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(1024, 1024);
+    dir.shadow.camera.near = 10;
+    dir.shadow.camera.far = 260;
+    dir.shadow.camera.left = -65;
+    dir.shadow.camera.right = 65;
+    dir.shadow.camera.top = 65;
+    dir.shadow.camera.bottom = -65;
+    dir.shadow.bias = -0.0005;
+    dir.shadow.normalBias = 0.03;
+    this.scene.add(dir);
+    this.scene.add(dir.target);
+    this.dirLight = dir;
+
     this.initParticles();
     this.initSkidMarks();
     this.initMinimap();
@@ -1327,6 +1378,18 @@ export class RacingGame {
       if (marker) {
         marker.position.y = marker.userData.baseY + Math.sin(this.elapsedTime * 5) * 0.18;
         marker.rotation.y += 0.04 * dt60;
+      }
+
+      // Keep crisp soft shadow frustum centered on the player kart everywhere on the track
+      if (this.dirLight) {
+        const kp = this.player.mesh.position;
+        this.dirLight.target.position.set(kp.x, 0, kp.z);
+        this.dirLight.position.set(
+          kp.x + this.sunOffset.x,
+          this.sunOffset.y,
+          kp.z + this.sunOffset.z
+        );
+        this.dirLight.target.updateMatrixWorld();
       }
 
       if (this.victoryTimer > 0) {
