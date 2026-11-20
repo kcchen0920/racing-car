@@ -103,8 +103,30 @@ const STORY_CHAPTERS = {
 };
 
 const finishTitle = document.getElementById('finish-title');
+const finishStatsEl = document.getElementById('finish-stats');
 const storyText = document.getElementById('story-text');
 const nextStageBtn = document.getElementById('next-stage-btn');
+
+const BEST_RANKS_KEY = 'migou_best_ranks';
+function loadBestRanks() {
+  try {
+    return JSON.parse(localStorage.getItem(BEST_RANKS_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+function updateBestRank(trackId, rank) {
+  const bests = loadBestRanks();
+  const prev = bests[trackId];
+  const isNewBest = !prev || rank < prev;
+  if (isNewBest) {
+    bests[trackId] = rank;
+    try {
+      localStorage.setItem(BEST_RANKS_KEY, JSON.stringify(bests));
+    } catch {}
+  }
+  return { best: bests[trackId], isNewBest };
+}
 
 const game = new RacingGame(document.getElementById('game-container'), {
   onLapChange: (lap, total) => {
@@ -128,10 +150,20 @@ const game = new RacingGame(document.getElementById('game-container'), {
       itemBtn.classList.add('hidden');
     }
   },
-  onFinish: () => {
+  onFinish: (stats = {}) => {
     sound.stopBGM();
     hudEl.classList.add('hidden');
     finishEl.classList.remove('hidden');
+    const rank = stats.rank || 1;
+    const total = stats.total || 8;
+    const coins = stats.coins ?? 0;
+    const { best, isNewBest } = updateBestRank(selectedTrack, rank);
+    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '🏆';
+    finishStatsEl.innerHTML = `
+      <span class="stat-pill">${medal} 第 ${rank} / ${total} 名</span>
+      <span class="stat-pill">⭐ 金幣 ${coins} 枚</span>
+      <span class="stat-pill">${isNewBest ? '✨ 新紀錄！' : '🏅 最佳：'}第 ${best} 名</span>
+    `;
     const idx = TRACK_THEMES.findIndex((t) => t.id === selectedTrack);
     const isLast = idx >= TRACK_THEMES.length - 1;
     finishTitle.textContent = isLast ? '🎉 大冒險全破關！🏆' : '🎉 太棒了！過關囉！🏆';
@@ -166,35 +198,63 @@ document.getElementById('replay-btn').onclick = () => {
   menuEl.classList.remove('hidden');
 };
 
-// Touch controls
+// Touch controls with independent pointerId tracking
 const touchLeft = document.getElementById('touch-left');
 const touchRight = document.getElementById('touch-right');
 const leftHint = touchLeft.querySelector('.steer-hint');
 const rightHint = touchRight.querySelector('.steer-hint');
+const activeSteerPointers = new Map();
 
-const stopSteer = () => {
-  game.setSteer(0);
-  leftHint.classList.remove('active');
-  rightHint.classList.remove('active');
+const syncSteerFromPointers = () => {
+  let hasLeft = false;
+  let hasRight = false;
+  let latestDir = 0;
+  for (const dir of activeSteerPointers.values()) {
+    if (dir === -1) hasLeft = true;
+    if (dir === 1) hasRight = true;
+    latestDir = dir;
+  }
+  const steer = hasLeft && hasRight ? latestDir : hasLeft ? -1 : hasRight ? 1 : 0;
+  game.setSteer(steer);
+  leftHint.classList.toggle('active', steer === -1);
+  rightHint.classList.toggle('active', steer === 1);
 };
 
-touchLeft.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  game.setSteer(-1);
-  leftHint.classList.add('active');
-});
-touchLeft.addEventListener('pointerup', stopSteer);
-touchLeft.addEventListener('pointercancel', stopSteer);
-touchLeft.addEventListener('pointerleave', stopSteer);
+const bindSteerZone = (el, dir) => {
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    activeSteerPointers.set(e.pointerId, dir);
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch {}
+    syncSteerFromPointers();
+  });
+  const release = (e) => {
+    if (activeSteerPointers.delete(e.pointerId)) {
+      syncSteerFromPointers();
+    }
+  };
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointercancel', release);
+  el.addEventListener('lostpointercapture', release);
+};
 
-touchRight.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  game.setSteer(1);
-  rightHint.classList.add('active');
+bindSteerZone(touchLeft, -1);
+bindSteerZone(touchRight, 1);
+
+const resetAllSteer = () => {
+  activeSteerPointers.clear();
+  syncSteerFromPointers();
+};
+window.addEventListener('blur', resetAllSteer);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    resetAllSteer();
+    game.pause();
+  } else {
+    game.resume();
+  }
 });
-touchRight.addEventListener('pointerup', stopSteer);
-touchRight.addEventListener('pointercancel', stopSteer);
-touchRight.addEventListener('pointerleave', stopSteer);
 
 const muteBtn = document.getElementById('mute-btn');
 muteBtn.addEventListener('pointerdown', (e) => {

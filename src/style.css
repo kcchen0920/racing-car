@@ -72,7 +72,25 @@ html, body {
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   background: radial-gradient(circle at top, var(--bg-warm) 0%, var(--bg-sky) 100%);
-  padding: 20px 16px;
+  padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+}
+
+.finish-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+
+.stat-pill {
+  background: var(--surface);
+  color: var(--ink);
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 1.05rem;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .overlay button,
@@ -209,7 +227,7 @@ h1 {
 
 #lap-badge, #coin-badge, #rank-badge {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top));
   background: rgba(255, 255, 255, 0.92);
   padding: 8px 18px;
   border-radius: var(--radius-pill);
@@ -219,24 +237,24 @@ h1 {
 }
 
 #lap-badge {
-  left: 16px;
+  left: calc(16px + env(safe-area-inset-left));
   color: var(--accent);
 }
 
 #coin-badge {
-  left: 175px;
+  left: calc(175px + env(safe-area-inset-left));
   color: var(--sun-deep);
 }
 
 #rank-badge {
-  right: 80px;
+  right: calc(80px + env(safe-area-inset-right));
   color: #1565c0;
 }
 
 .mute-btn {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(16px + env(safe-area-inset-right));
   width: 52px;
   height: 52px;
   border-radius: var(--radius-pill);
@@ -269,7 +287,7 @@ h1 {
   touch-action: none;
   display: flex;
   align-items: flex-end;
-  padding: 24px;
+  padding: 24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
 }
 
 #touch-left {
@@ -308,7 +326,7 @@ h1 {
 
 #item-btn {
   position: absolute;
-  bottom: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   width: 92px;
@@ -343,12 +361,12 @@ h1 {
   }
 
   #coin-badge {
-    left: 16px;
-    top: 58px;
+    left: calc(16px + env(safe-area-inset-left));
+    top: calc(58px + env(safe-area-inset-top));
   }
 
   #rank-badge {
-    right: 74px;
+    right: calc(74px + env(safe-area-inset-right));
   }
 
   .mute-btn {

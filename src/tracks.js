@@ -305,7 +305,49 @@ export function buildTrack(scene, themeId) {
     coins.push(coin);
   }
 
+  // Glowing Boost Pads (>>>)
   const boostPads = [];
+  const padCanvas = document.createElement('canvas');
+  padCanvas.width = 128;
+  padCanvas.height = 128;
+  const pCtx = padCanvas.getContext('2d');
+  pCtx.fillStyle = '#00bcd4';
+  pCtx.fillRect(0, 0, 128, 128);
+  pCtx.fillStyle = '#ffeb3b';
+  for (let row = 0; row < 2; row++) {
+    const y = 26 + row * 56;
+    pCtx.beginPath();
+    pCtx.moveTo(20, y + 36);
+    pCtx.lineTo(64, y);
+    pCtx.lineTo(108, y + 36);
+    pCtx.lineTo(90, y + 36);
+    pCtx.lineTo(64, y + 14);
+    pCtx.lineTo(38, y + 36);
+    pCtx.closePath();
+    pCtx.fill();
+  }
+  const padTex = new THREE.CanvasTexture(padCanvas);
+  const padGeo = new THREE.PlaneGeometry(4.6, 6.2);
+  padGeo.rotateX(-Math.PI / 2);
+  const padMat = new THREE.MeshBasicMaterial({
+    map: padTex,
+    transparent: true,
+    opacity: 0.92,
+  });
+  for (let i = 0; i < 5; i++) {
+    const t = (i + 0.35) / 5;
+    const pt = curve.getPointAt(t);
+    const tan = curve.getTangentAt(t).normalize();
+    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+    const offset = ((i % 3) - 1) * 3.4;
+    const pad = new THREE.Mesh(padGeo, padMat);
+    const pos = pt.clone().addScaledVector(norm, offset);
+    pad.position.set(pos.x, 0.06, pos.z);
+    pad.lookAt(pos.x + tan.x, 0.06, pos.z + tan.z);
+    pad.userData = { cooldown: 0 };
+    scene.add(pad);
+    boostPads.push(pad);
+  }
 
   // Vivid Illustrated Animals & Plants around the track
   const animatedProps = [];
