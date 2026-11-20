@@ -219,9 +219,13 @@ const game = new RacingGame(document.getElementById('game-container'), {
   },
 });
 
-function startGame() {
+async function startGame() {
   sound.init();
   sound.startBGM();
+  if (gyroEnabled) {
+    await ensureGyroPermission();
+    calibrateGyro();
+  }
   menuEl.classList.add('hidden');
   finishEl.classList.add('hidden');
   pauseEl.classList.add('hidden');
@@ -235,6 +239,7 @@ function goHome() {
   sound.stopBGM();
   sound.stopEngine();
   game.stopLoop();
+  game.setGyroSteer(0);
   hudEl.classList.add('hidden');
   finishEl.classList.add('hidden');
   pauseEl.classList.add('hidden');
@@ -281,6 +286,14 @@ const touchRight = document.getElementById('touch-right');
 const leftHint = touchLeft.querySelector('.steer-hint');
 const rightHint = touchRight.querySelector('.steer-hint');
 const activeSteerPointers = new Map();
+let currentButtonSteer = 0;
+let smoothedGyroSteer = 0;
+
+const refreshSteerHints = () => {
+  const effective = currentButtonSteer !== 0 ? currentButtonSteer : smoothedGyroSteer;
+  leftHint.classList.toggle('active', effective <= -0.22);
+  rightHint.classList.toggle('active', effective >= 0.22);
+};
 
 const syncSteerFromPointers = () => {
   let hasLeft = false;
@@ -291,11 +304,148 @@ const syncSteerFromPointers = () => {
     if (dir === 1) hasRight = true;
     latestDir = dir;
   }
-  const steer = hasLeft && hasRight ? latestDir : hasLeft ? -1 : hasRight ? 1 : 0;
-  game.setSteer(steer);
-  leftHint.classList.toggle('active', steer === -1);
-  rightHint.classList.toggle('active', steer === 1);
+  currentButtonSteer = hasLeft && hasRight ? latestDir : hasLeft ? -1 : hasRight ? 1 : 0;
+  game.setSteer(currentButtonSteer);
+  refreshSteerHints();
 };
+
+// Gyroscope / DeviceOrientation parallel steering
+const GYRO_KEY = 'migou_gyro_enabled';
+const menuGyroBtn = document.getElementById('menu-gyro-btn');
+const hudGyroBtn = document.getElementById('gyro-btn');
+let gyroEnabled = localStorage.getItem(GYRO_KEY) !== 'false';
+let gyroListening = false;
+let neutralTilt = null;
+
+function syncGyroButtons() {
+  if (menuGyroBtn) {
+    menuGyroBtn.classList.toggle('active', gyroEnabled);
+    menuGyroBtn.textContent = gyroEnabled
+      ? '🎮 體感方向盤：開（可與按鍵併用）'
+      : '🎮 體感方向盤：關（僅使用按鍵）';
+  }
+  if (hudGyroBtn) {
+    hudGyroBtn.classList.toggle('active', gyroEnabled);
+  }
+}
+
+function calibrateGyro() {
+  neutralTilt = null;
+  smoothedGyroSteer = 0;
+  game.setGyroSteer(0);
+  refreshSteerHints();
+}
+
+function getScreenAngle() {
+  if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
+    return window.screen.orientation.angle;
+  }
+  return typeof window.orientation === 'number' ? window.orientation : 0;
+}
+
+function onDeviceOrientation(e) {
+  if (!gyroEnabled || game.mode !== 'race' || game.paused) return;
+  const gamma = typeof e.gamma === 'number' ? e.gamma : null;
+  const beta = typeof e.beta === 'number' ? e.beta : null;
+  if (gamma === null && beta === null) return;
+
+  const angle = ((getScreenAngle() % 360) + 360) % 360;
+  let rawTilt = 0;
+  if (angle === 90) {
+    rawTilt = beta ?? 0;
+  } else if (angle === 270) {
+    rawTilt = -(beta ?? 0);
+  } else if (angle === 180) {
+    rawTilt = -(gamma ?? 0);
+  } else {
+    rawTilt = gamma ?? 0;
+  }
+
+  if (neutralTilt === null) {
+    neutralTilt = Math.max(-20, Math.min(20, rawTilt));
+  }
+
+  const delta = rawTilt - neutralTilt;
+  const deadzone = 4;
+  const maxTilt = 26;
+  let target = 0;
+  if (Math.abs(delta) > deadzone) {
+    const sign = Math.sign(delta);
+    target = Math.max(-1, Math.min(1, (delta - sign * deadzone) / (maxTilt - deadzone)));
+  }
+
+  smoothedGyroSteer += (target - smoothedGyroSteer) * 0.28;
+  if (Math.abs(smoothedGyroSteer) < 0.03 && target === 0) smoothedGyroSteer = 0;
+  game.setGyroSteer(smoothedGyroSteer);
+  refreshSteerHints();
+}
+
+async function ensureGyroPermission() {
+  if (typeof window.DeviceOrientationEvent === 'undefined') {
+    return false;
+  }
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      const state = await DeviceOrientationEvent.requestPermission();
+      if (state !== 'granted') {
+        gyroEnabled = false;
+        localStorage.setItem(GYRO_KEY, 'false');
+        syncGyroButtons();
+        showActionToast('⚠️ 未取得體感權限，改用觸控操作');
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+  if (!gyroListening) {
+    window.addEventListener('deviceorientation', onDeviceOrientation, true);
+    gyroListening = true;
+  }
+  return true;
+}
+
+window.addEventListener('orientationchange', () => {
+  if (gyroEnabled) calibrateGyro();
+});
+
+if (menuGyroBtn) {
+  menuGyroBtn.addEventListener('click', async () => {
+    gyroEnabled = !gyroEnabled;
+    localStorage.setItem(GYRO_KEY, String(gyroEnabled));
+    if (gyroEnabled) {
+      await ensureGyroPermission();
+      calibrateGyro();
+    } else {
+      calibrateGyro();
+    }
+    syncGyroButtons();
+  });
+}
+
+if (hudGyroBtn) {
+  hudGyroBtn.addEventListener('pointerdown', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    gyroEnabled = !gyroEnabled;
+    localStorage.setItem(GYRO_KEY, String(gyroEnabled));
+    if (gyroEnabled) {
+      await ensureGyroPermission();
+      calibrateGyro();
+      showActionToast('🎮 體感方向盤已開啟！');
+    } else {
+      calibrateGyro();
+      showActionToast('🎮 體感已關閉（純按鍵）');
+    }
+    syncGyroButtons();
+  });
+}
+
+syncGyroButtons();
+if (gyroEnabled && typeof window.DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') {
+  window.addEventListener('deviceorientation', onDeviceOrientation, true);
+  gyroListening = true;
+}
 
 const bindSteerZone = (el, dir) => {
   el.addEventListener('pointerdown', (e) => {

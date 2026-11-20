@@ -16,7 +16,9 @@ export class RacingGame {
     this.mode = 'idle'; // 'idle' | 'showroom' | 'race'
     this.running = false;
     this.paused = false;
-    this.steerInput = 0; // -1 left, 1 right
+    this.buttonSteer = 0; // -1 left, 1 right (touch/keyboard)
+    this.gyroSteer = 0; // -1..1 analog tilt
+    this.steerInput = 0; // effective steer (button overrides gyro)
     this.totalLaps = 2;
     this.rafId = null;
     this.lastFrameTime = 0;
@@ -676,9 +678,22 @@ export class RacingGame {
     });
   }
 
+  updateEffectiveSteer() {
+    this.steerInput = this.buttonSteer !== 0 ? this.buttonSteer : this.gyroSteer;
+  }
+
   setSteer(val) {
-    this.steerInput = val;
-    if (!this.running && this.mode === 'race' && this.countdownStep === 2 && val !== 0) {
+    this.buttonSteer = Number.isFinite(val) ? Math.max(-1, Math.min(1, val)) : 0;
+    this.updateEffectiveSteer();
+    if (!this.running && this.mode === 'race' && this.countdownStep === 2 && this.buttonSteer !== 0) {
+      this.rocketStartReady = true;
+    }
+  }
+
+  setGyroSteer(val) {
+    this.gyroSteer = Number.isFinite(val) ? Math.max(-1, Math.min(1, val)) : 0;
+    this.updateEffectiveSteer();
+    if (!this.running && this.mode === 'race' && this.countdownStep === 2 && Math.abs(this.gyroSteer) >= 0.45) {
       this.rocketStartReady = true;
     }
   }
@@ -913,13 +928,21 @@ export class RacingGame {
       }
 
       // 3. Steering with Lateral Velocity + Cornering Centrifugal Force + Auto-Drift & Mini-Turbo
-      if (this.steerInput !== 0) {
+      const steerDir = Math.abs(this.steerInput) >= 0.45 ? Math.sign(this.steerInput) : 0;
+      if (Math.abs(this.steerInput) > 0.02) {
         const targetLatVel = this.steerInput * 1.95;
         p.lateralVel += (targetLatVel - p.lateralVel) * Math.min(1, dt * 11);
-        if (p.driftDir === this.steerInput) {
+      } else {
+        p.lateralVel *= Math.pow(0.82, dt60);
+        // Gentle auto-center assist
+        p.lateral *= Math.pow(0.975, dt60);
+      }
+
+      if (steerDir !== 0) {
+        if (p.driftDir === steerDir) {
           p.driftTime += dt;
         } else {
-          p.driftDir = this.steerInput;
+          p.driftDir = steerDir;
           p.driftTime = 0;
         }
       } else {
@@ -932,9 +955,6 @@ export class RacingGame {
         }
         p.driftTime = 0;
         p.driftDir = 0;
-        p.lateralVel *= Math.pow(0.82, dt60);
-        // Gentle auto-center assist
-        p.lateral *= Math.pow(0.975, dt60);
       }
 
       // Gentle outward centrifugal push in corners

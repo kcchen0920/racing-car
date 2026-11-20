@@ -239,6 +239,26 @@ h1 {
   transform: translateY(3px);
 }
 
+.gyro-menu-btn {
+  margin-top: 12px;
+  background: var(--surface);
+  color: var(--ink-muted);
+  border: 3px solid #cfd8dc;
+  border-radius: var(--radius-pill);
+  padding: 8px 18px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+
+.gyro-menu-btn.active {
+  background: var(--surface-soft);
+  color: var(--accent-deep);
+  border-color: var(--sun-deep);
+}
+
 /* HUD */
 #hud {
   position: fixed;
@@ -270,10 +290,11 @@ h1 {
 }
 
 #rank-badge {
-  right: calc(138px + env(safe-area-inset-right));
+  right: calc(198px + env(safe-area-inset-right));
   color: #1565c0;
 }
 
+.gyro-btn,
 .pause-btn,
 .mute-btn {
   position: absolute;
@@ -288,6 +309,16 @@ h1 {
   pointer-events: auto;
   touch-action: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.gyro-btn {
+  right: calc(136px + env(safe-area-inset-right));
+  opacity: 0.55;
+}
+
+.gyro-btn.active {
+  opacity: 1;
+  background: var(--sun);
 }
 
 .mute-btn {
@@ -477,9 +508,10 @@ h1 {
   }
 
   #rank-badge {
-    right: calc(114px + env(safe-area-inset-right));
+    right: calc(164px + env(safe-area-inset-right));
   }
 
+  .gyro-btn,
   .pause-btn,
   .mute-btn {
     width: 44px;
@@ -487,8 +519,12 @@ h1 {
     font-size: 1.2rem;
   }
 
+  .gyro-btn {
+    right: calc(114px + env(safe-area-inset-right));
+  }
+
   .pause-btn {
-    right: calc(66px + env(safe-area-inset-right));
+    right: calc(64px + env(safe-area-inset-right));
   }
 
   #minimap {
