@@ -23,6 +23,12 @@ export class RacingGame {
     this.countdownTimers = [];
     this.baseFov = 72;
     this.boostFovOffset = 0;
+    this.cameraShake = 0;
+    this.particles = [];
+    this.particleMats = null;
+    this.minimapCanvas = document.getElementById('minimap');
+    this.minimapCtx = this.minimapCanvas ? this.minimapCanvas.getContext('2d') : null;
+    this.minimapData = null;
 
     // Reusable vectors to avoid per-frame GC allocations
     this._tmpPt = new THREE.Vector3();
@@ -33,6 +39,7 @@ export class RacingGame {
     this._tmpCamPos = new THREE.Vector3();
     this._tmpCamLook = new THREE.Vector3();
     this._tmpCamUp = new THREE.Vector3(0, 5.5, 0);
+    this.camBasePos = new THREE.Vector3();
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
@@ -45,6 +52,8 @@ export class RacingGame {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.shadowMap.enabled = true;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.08;
     this.renderer.domElement.style.display = 'block';
     container.appendChild(this.renderer.domElement);
     this.onResize();
@@ -137,19 +146,164 @@ export class RacingGame {
     }
   }
 
+  initParticles() {
+    this.particles = [];
+    const geo = new THREE.SphereGeometry(0.24, 6, 6);
+    this.particleMats = {
+      flame: new THREE.MeshBasicMaterial({ color: 0xff9100, transparent: true, opacity: 0.9 }),
+      spark: new THREE.MeshBasicMaterial({ color: 0xffee58, transparent: true, opacity: 0.95 }),
+      dust: new THREE.MeshBasicMaterial({ color: 0xe0e0e0, transparent: true, opacity: 0.65 }),
+      coin: new THREE.MeshBasicMaterial({ color: 0xffd54f, transparent: true, opacity: 0.95 }),
+      wind: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }),
+    };
+    for (let i = 0; i < 90; i++) {
+      const mesh = new THREE.Mesh(geo, this.particleMats.flame);
+      mesh.visible = false;
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this.particles.push({
+        mesh,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        life: 0,
+        maxLife: 1,
+        baseScale: 1,
+      });
+    }
+  }
+
+  spawnParticle(type, x, y, z, vx, vy, vz, life = 0.4, scale = 1) {
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      if (p.life <= 0) {
+        p.mesh.material = this.particleMats[type] || this.particleMats.flame;
+        p.mesh.position.set(x, y, z);
+        p.vx = vx;
+        p.vy = vy;
+        p.vz = vz;
+        p.life = life;
+        p.maxLife = life;
+        p.baseScale = scale;
+        p.mesh.scale.setScalar(scale);
+        p.mesh.visible = true;
+        return;
+      }
+    }
+  }
+
+  updateParticles(dt) {
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      if (p.life <= 0) continue;
+      p.life -= dt;
+      if (p.life <= 0) {
+        p.mesh.visible = false;
+        continue;
+      }
+      p.mesh.position.x += p.vx * dt;
+      p.mesh.position.y += p.vy * dt;
+      p.mesh.position.z += p.vz * dt;
+      p.vy -= 4.5 * dt;
+      const ratio = Math.max(0.05, p.life / p.maxLife);
+      p.mesh.scale.setScalar(p.baseScale * ratio);
+    }
+  }
+
+  initMinimap() {
+    if (!this.track || !this.minimapCanvas) return;
+    const pts = [];
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    const samples = 96;
+    for (let i = 0; i < samples; i++) {
+      const p = this.track.curve.getPointAt(i / samples);
+      pts.push({ x: p.x, z: p.z });
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.z > maxZ) maxZ = p.z;
+    }
+    const pad = 14;
+    const span = Math.max(maxX - minX, maxZ - minZ, 1);
+    const size = this.minimapCanvas.width - pad * 2;
+    const offsetX = pad + (size - ((maxX - minX) / span) * size) * 0.5;
+    const offsetY = pad + (size - ((maxZ - minZ) / span) * size) * 0.5;
+    this.minimapData = {
+      pts,
+      minX,
+      minZ,
+      scale: size / span,
+      offsetX,
+      offsetY,
+    };
+  }
+
+  drawMinimap() {
+    if (!this.minimapCtx || !this.minimapData || !this.player) return;
+    const ctx = this.minimapCtx;
+    const w = this.minimapCanvas.width;
+    const h = this.minimapCanvas.height;
+    const { pts, minX, minZ, scale, offsetX, offsetY } = this.minimapData;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Track outline
+    ctx.beginPath();
+    pts.forEach((p, idx) => {
+      const mx = offsetX + (p.x - minX) * scale;
+      const my = offsetY + (p.z - minZ) * scale;
+      if (idx === 0) ctx.moveTo(mx, my);
+      else ctx.lineTo(mx, my);
+    });
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(55, 71, 79, 0.45)';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // AI dots
+    this.ais.forEach((ai) => {
+      const pos = ai.mesh.position;
+      const mx = offsetX + (pos.x - minX) * scale;
+      const my = offsetY + (pos.z - minZ) * scale;
+      ctx.beginPath();
+      ctx.arc(mx, my, 3.6, 0, Math.PI * 2);
+      ctx.fillStyle = ai.colorCss;
+      ctx.fill();
+    });
+
+    // Player dot (larger with crisp white border)
+    const pPos = this.player.mesh.position;
+    const px = offsetX + (pPos.x - minX) * scale;
+    const py = offsetY + (pPos.z - minZ) * scale;
+    ctx.beginPath();
+    ctx.arc(px, py, 5.8, 0, Math.PI * 2);
+    ctx.fillStyle = this.player.colorCss;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+  }
+
   start(kartId, trackId, customColor = null, heroPhotoUrl = null) {
     this.stopLoop();
     this.disposeScene();
     this.paused = false;
     this.boostFovOffset = 0;
+    this.cameraShake = 0;
     this.elapsedTime = 0;
     this.lastFrameTime = performance.now();
     this.onResize();
 
     // Lights
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.1);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x5d6d7e, 1.15);
     this.scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    const dir = new THREE.DirectionalLight(0xfffde7, 1.05);
     dir.position.set(60, 120, 60);
     dir.castShadow = true;
     dir.shadow.camera.left = -160;
@@ -159,6 +313,8 @@ export class RacingGame {
     this.scene.add(dir);
 
     this.track = buildTrack(this.scene, trackId);
+    this.initParticles();
+    this.initMinimap();
 
     // Setup Player
     const playerMesh = createKartMesh(kartId, customColor, heroPhotoUrl, true);
@@ -166,9 +322,22 @@ export class RacingGame {
     const playerColorHex = playerMesh.userData.baseColor;
     this.player = {
       mesh: playerMesh,
+      colorCss: `#${new THREE.Color(playerColorHex).getHexString()}`,
       t: 0,
       lateral: 0, // -1 to 1 across roadWidth
+      lateralVel: 0,
+      yPos: 0,
+      yVel: 0,
+      squash: 0,
       tilt: 0,
+      pitch: 0,
+      driftTime: 0,
+      driftDir: 0,
+      driftYaw: 0,
+      steerAngle: 0,
+      slipstreamTime: 0,
+      slipstreamActive: false,
+      hitCooldown: 0,
       speed: 0,
       baseSpeed: 0.00052, // relaxed kid-friendly speed for longer track
       lap: 1,
@@ -211,17 +380,26 @@ export class RacingGame {
 
     this.ais = Array.from({ length: 7 }, (_, idx) => {
       const typeId = KART_TYPES[idx % KART_TYPES.length].id;
-      const mesh = createKartMesh(typeId, aiColors[idx % aiColors.length]);
+      const colorHex = aiColors[idx % aiColors.length];
+      const mesh = createKartMesh(typeId, colorHex);
       this.scene.add(mesh);
       const initLat = ((idx % 3) - 1) * 0.45;
       return {
         mesh,
+        colorCss: `#${new THREE.Color(colorHex).getHexString()}`,
         t: 0.01 * (idx + 1),
         lateral: initLat,
         targetLateral: initLat,
         laneTimer: 1.5 + idx * 0.4,
+        yPos: 0,
+        yVel: 0,
+        squash: 0,
         tilt: 0,
+        pitch: 0,
+        driftYaw: 0,
+        steerAngle: 0,
         baseSpeed: 0.00046 + (idx % 4) * 0.000025,
+        speed: 0.00046,
         lap: 1,
       };
     });
@@ -229,6 +407,7 @@ export class RacingGame {
     this.updateKartTransform(this.player, 0, 1);
     this.ais.forEach((ai) => this.updateKartTransform(ai, 0, 1));
     this.snapCamera();
+    this.drawMinimap();
 
     this.running = false;
     this.lastReportedRank = -1;
@@ -294,44 +473,77 @@ export class RacingGame {
 
   snapCamera() {
     if (!this.player || !this.track) return;
+    const safeT = ((this.player.t % 1) + 1) % 1;
     const kartPos = this.player.mesh.position;
-    this.track.curve.getTangentAt(this.player.t % 1, this._tmpTan).normalize();
+    this.track.curve.getTangentAt(safeT, this._tmpTan);
+    if (this._tmpTan.lengthSq() > 1e-6) this._tmpTan.normalize();
+    else this._tmpTan.set(0, 0, 1);
+
     this._tmpCamPos
       .copy(kartPos)
       .addScaledVector(this._tmpTan, -11)
       .add(this._tmpCamUp);
-    this.camera.position.copy(this._tmpCamPos);
+    this.camBasePos.copy(this._tmpCamPos);
+    this.camera.position.copy(this.camBasePos);
     this._tmpCamLook.copy(kartPos).addScaledVector(this._tmpTan, 5);
     this._tmpCamLook.y += 1.2;
     this.camera.lookAt(this._tmpCamLook);
   }
 
   updateKartTransform(kart, yOffset = 0, dt60 = 1) {
-    this.track.curve.getPointAt(kart.t % 1, this._tmpPt);
-    this.track.curve.getTangentAt(kart.t % 1, this._tmpTan).normalize();
+    const safeT = Number.isFinite(kart.t) ? ((kart.t % 1) + 1) % 1 : 0;
+    const safeLat = Number.isFinite(kart.lateral) ? Math.max(-1, Math.min(1, kart.lateral)) : 0;
+    const safeY = Number.isFinite(yOffset) ? Math.max(0, Math.min(12, yOffset)) : 0;
+
+    this.track.curve.getPointAt(safeT, this._tmpPt);
+    this.track.curve.getTangentAt(safeT, this._tmpTan);
+    if (this._tmpTan.lengthSq() > 1e-6) this._tmpTan.normalize();
+    else this._tmpTan.set(0, 0, 1);
     this._tmpNorm.set(-this._tmpTan.z, 0, this._tmpTan.x);
 
     const maxOffset = this.track.roadWidth * 0.38;
-    this._tmpPos.copy(this._tmpPt).addScaledVector(this._tmpNorm, kart.lateral * maxOffset);
-    kart.mesh.position.set(this._tmpPos.x, yOffset, this._tmpPos.z);
+    this._tmpPos.copy(this._tmpPt).addScaledVector(this._tmpNorm, safeLat * maxOffset);
+    kart.mesh.position.set(this._tmpPos.x, safeY, this._tmpPos.z);
 
     this._tmpLook.copy(this._tmpPos).add(this._tmpTan);
-    this._tmpLook.y = yOffset;
+    this._tmpLook.y = safeY;
     kart.mesh.lookAt(this._tmpLook);
-    if (kart.tilt) {
-      kart.mesh.rotateZ(kart.tilt);
+    kart.mesh.visible = true;
+
+    // Apply chassis animations (drift yaw, roll, pitch, suspension squash, idle hum) cleanly on child group
+    const ud = kart.mesh.userData;
+    const chassis = ud.chassisGroup;
+    if (chassis) {
+      const tilt = Number.isFinite(kart.tilt) ? Math.max(-0.26, Math.min(0.26, kart.tilt)) : 0;
+      const pitch = Number.isFinite(kart.pitch) ? Math.max(-0.22, Math.min(0.22, kart.pitch)) : 0;
+      const driftYaw = Number.isFinite(kart.driftYaw) ? Math.max(-0.25, Math.min(0.25, kart.driftYaw)) : 0;
+      const squash = Number.isFinite(kart.squash) ? Math.max(0, Math.min(0.2, kart.squash)) : 0;
+      const idleHum = Math.sin(this.elapsedTime * 28 + safeLat * 3) * 0.016;
+
+      chassis.rotation.set(pitch, driftYaw, tilt);
+      chassis.position.y = idleHum;
+      chassis.scale.set(1 + squash * 0.45, 1 - squash, 1 + squash * 0.25);
     }
 
-    // Spin wheels
-    kart.mesh.userData.wheels.forEach((w) => {
-      w.rotation.x += 0.25 * dt60;
+    // Steer front wheel pivots
+    if (ud.frontWheelPivots) {
+      const steerAng = Number.isFinite(kart.steerAngle) ? kart.steerAngle : 0;
+      ud.frontWheelPivots.forEach((pivot) => {
+        pivot.rotation.y = steerAng;
+      });
+    }
+
+    // Spin wheels proportionally to speed
+    const wheelSpin = this.running ? 0.25 * dt60 : 0.04 * dt60;
+    ud.wheels.forEach((w) => {
+      w.rotation.x += wheelSpin;
     });
   }
 
   animate(now = performance.now()) {
     if (!this.renderer || this.paused) return;
 
-    const dt = this.lastFrameTime ? Math.min((now - this.lastFrameTime) / 1000, 0.05) : 1 / 60;
+    const dt = this.lastFrameTime ? Math.min(Math.max((now - this.lastFrameTime) / 1000, 0.001), 0.05) : 1 / 60;
     this.lastFrameTime = now;
     const dt60 = dt * 60;
     this.elapsedTime += dt;
@@ -339,56 +551,147 @@ export class RacingGame {
     let finishedThisFrame = false;
 
     if (this.running && this.player) {
-      // Player movement (auto-accelerate + smart steering)
-      let speed = this.player.baseSpeed;
-      if (this.player.boostTimer > 0) {
-        speed *= 1.35;
-        this.player.boostTimer = Math.max(0, this.player.boostTimer - dt60);
-      } else if (this.player.slowTimer > 0) {
-        speed *= 0.45;
-        this.player.slowTimer = Math.max(0, this.player.slowTimer - dt60);
+      const p = this.player;
+      if (p.hitCooldown > 0) p.hitCooldown = Math.max(0, p.hitCooldown - dt);
+
+      // 1. Target Speed with Boost, Slow, and Slipstream (Drafting)
+      let targetSpeed = p.baseSpeed;
+      if (p.boostTimer > 0) {
+        targetSpeed *= 1.38;
+        p.boostTimer = Math.max(0, p.boostTimer - dt60);
+      } else if (p.slowTimer > 0) {
+        targetSpeed *= 0.48;
+        p.slowTimer = Math.max(0, p.slowTimer - dt60);
       }
+      if (p.slipstreamActive && p.slowTimer <= 0) {
+        targetSpeed *= 1.14;
+      }
+
+      // Smooth acceleration & inertia curve
+      const accelRate = targetSpeed > p.speed ? 4.2 : 6.5;
+      p.speed += (targetSpeed - p.speed) * Math.min(1, dt * accelRate);
+
+      // 2. Gravity, Jump Ramps & Suspension Squash
+      if (p.yPos > 0 || p.yVel > 0) {
+        p.yPos += p.yVel * dt;
+        p.yVel -= 34 * dt;
+        if (p.yPos <= 0) {
+          p.yPos = 0;
+          if (p.yVel < -5) {
+            p.squash = 0.14;
+            this.cameraShake = Math.max(this.cameraShake, 0.16);
+            const kp = p.mesh.position;
+            for (let k = 0; k < 5; k++) {
+              this.spawnParticle(
+                'dust',
+                kp.x + (Math.random() - 0.5) * 1.8,
+                0.3,
+                kp.z + (Math.random() - 0.5) * 1.8,
+                (Math.random() - 0.5) * 4,
+                1.5 + Math.random() * 2,
+                (Math.random() - 0.5) * 4,
+                0.35,
+                1.2
+              );
+            }
+          }
+          p.yVel = 0;
+        }
+      }
+      p.squash *= Math.pow(0.84, dt60);
+
       let bounceY = 0;
-      if (this.player.bounceTimer > 0) {
-        this.player.bounceTimer = Math.max(0, this.player.bounceTimer - dt60);
-        bounceY = Math.abs(Math.sin(this.player.bounceTimer * 0.4)) * 1.6;
+      if (p.bounceTimer > 0) {
+        p.bounceTimer = Math.max(0, p.bounceTimer - dt60);
+        bounceY = Math.abs(Math.sin(p.bounceTimer * 0.4)) * 1.4;
       }
 
       // Rainbow star effect
-      if (this.player.starTimer > 0) {
-        this.player.starTimer = Math.max(0, this.player.starTimer - dt60);
+      if (p.starTimer > 0) {
+        p.starTimer = Math.max(0, p.starTimer - dt60);
         const hue = (this.elapsedTime * 3.0) % 1;
-        this.player.mesh.userData.bodyMat.color.setHSL(hue, 0.9, 0.55);
-        if (this.player.starTimer === 0) {
-          this.player.mesh.userData.bodyMat.color.setHex(
-            this.player.mesh.userData.baseColor
-          );
+        p.mesh.userData.bodyMat.color.setHSL(hue, 0.9, 0.55);
+        if (p.starTimer === 0) {
+          p.mesh.userData.bodyMat.color.setHex(p.mesh.userData.baseColor);
         }
       }
 
-      if (this.player.bubbleTimer > 0) {
-        this.player.bubbleTimer = Math.max(0, this.player.bubbleTimer - dt60);
-        if (this.player.bubbleTimer === 0) {
-          this.player.mesh.userData.bubble.visible = false;
+      if (p.bubbleTimer > 0) {
+        p.bubbleTimer = Math.max(0, p.bubbleTimer - dt60);
+        if (p.bubbleTimer === 0) {
+          p.mesh.userData.bubble.visible = false;
         }
       }
 
-      // Steering with gentle auto-center assist + subtle body roll
+      // 3. Steering with Lateral Velocity (Inertia) + Auto-Drift & Mini-Turbo
       if (this.steerInput !== 0) {
-        this.player.lateral += this.steerInput * 0.032 * dt60;
+        const targetLatVel = this.steerInput * 1.95;
+        p.lateralVel += (targetLatVel - p.lateralVel) * Math.min(1, dt * 11);
+        if (p.driftDir === this.steerInput) {
+          p.driftTime += dt;
+        } else {
+          p.driftDir = this.steerInput;
+          p.driftTime = 0;
+        }
       } else {
-        this.player.lateral *= Math.pow(0.97, dt60);
+        // Release after sustained drift triggers Mini-Turbo!
+        if (p.driftTime >= 0.75) {
+          p.boostTimer = Math.max(p.boostTimer, 48);
+          try { sound.playBoost(); } catch (_) {}
+        }
+        p.driftTime = 0;
+        p.driftDir = 0;
+        p.lateralVel *= Math.pow(0.82, dt60);
+        // Gentle auto-center assist
+        p.lateral *= Math.pow(0.975, dt60);
       }
-      this.player.lateral = Math.max(-1, Math.min(1, this.player.lateral));
-      const targetTilt = -this.steerInput * 0.16;
-      this.player.tilt += (targetTilt - this.player.tilt) * Math.min(1, dt * 12);
 
-      const prevT = this.player.t;
-      this.player.t = (this.player.t + speed * dt60) % 1;
+      p.lateral += p.lateralVel * dt;
+      if (p.lateral < -1 || p.lateral > 1) {
+        p.lateral = Math.max(-1, Math.min(1, p.lateral));
+        p.lateralVel *= 0.3;
+      }
 
-      if (this.player.t < prevT) {
-        this.player.lap++;
-        if (this.player.lap > this.totalLaps) {
+      // Visual chassis roll, drift yaw, pitch, and front wheel angle
+      const isDrifting = p.driftTime >= 0.65 && p.yPos <= 0.05;
+      const targetTilt = -p.lateralVel * 0.09;
+      p.tilt += (targetTilt - p.tilt) * Math.min(1, dt * 12);
+
+      const targetDriftYaw = isDrifting ? -p.driftDir * 0.14 : 0;
+      p.driftYaw += (targetDriftYaw - p.driftYaw) * Math.min(1, dt * 8);
+
+      const targetPitch =
+        p.yPos > 0.1
+          ? Math.max(-0.18, Math.min(0.18, -p.yVel * 0.012))
+          : p.boostTimer > 0
+          ? -0.06
+          : p.slowTimer > 0
+          ? 0.06
+          : 0;
+      p.pitch += (targetPitch - p.pitch) * Math.min(1, dt * 10);
+
+      const targetSteerAng = -this.steerInput * 0.36;
+      p.steerAngle += (targetSteerAng - p.steerAngle) * Math.min(1, dt * 14);
+
+      // Exhaust flames toggle & flicker
+      const isBoosting = p.boostTimer > 0 || p.slipstreamActive;
+      if (p.mesh.userData.exhaustFlames) {
+        p.mesh.userData.exhaustFlames.forEach((flame) => {
+          flame.visible = isBoosting;
+          if (isBoosting) {
+            const flicker = 0.8 + Math.random() * 0.45;
+            flame.scale.set(0.9, 0.9, flicker);
+          }
+        });
+      }
+
+      // Advance along track
+      const prevT = p.t;
+      p.t = ((p.t + p.speed * dt60) % 1 + 1) % 1;
+
+      if (p.t < prevT) {
+        p.lap++;
+        if (p.lap > this.totalLaps) {
           this.running = false;
           finishedThisFrame = true;
           const finalRank = this.computeRank();
@@ -396,28 +699,66 @@ export class RacingGame {
           this.callbacks.onFinish({
             rank: finalRank,
             total: 1 + this.ais.length,
-            coins: this.player.coins,
+            coins: p.coins,
           });
         } else {
-          this.callbacks.onLapChange(this.player.lap, this.totalLaps);
+          this.callbacks.onLapChange(p.lap, this.totalLaps);
         }
       }
 
-      this.player.mesh.visible = true;
-      this.updateKartTransform(this.player, bounceY, dt60);
+      this.updateKartTransform(p, p.yPos + bounceY, dt60);
 
-      // Update AI with dynamic rubber-banding, lane variety & Kart-to-Kart Physics Collision
-      const playerProg = this.player.lap + this.player.t;
+      // Spawn drift sparks & boost flame particles
+      const kp = p.mesh.position;
+      if (isDrifting && Math.random() < 0.55) {
+        this.spawnParticle(
+          'spark',
+          kp.x + (Math.random() - 0.5) * 1.6,
+          0.25,
+          kp.z + (Math.random() - 0.5) * 1.6,
+          (Math.random() - 0.5) * 4,
+          1.8 + Math.random() * 2.2,
+          (Math.random() - 0.5) * 4,
+          0.28,
+          0.85
+        );
+      }
+      if (isBoosting && Math.random() < 0.65) {
+        this.spawnParticle(
+          p.slipstreamActive && p.boostTimer <= 0 ? 'wind' : 'flame',
+          kp.x - this._tmpTan.x * 2.1 + (Math.random() - 0.5) * 0.9,
+          kp.y + 0.85,
+          kp.z - this._tmpTan.z * 2.1 + (Math.random() - 0.5) * 0.9,
+          -this._tmpTan.x * 5 + (Math.random() - 0.5) * 1.5,
+          0.8 + Math.random(),
+          -this._tmpTan.z * 5 + (Math.random() - 0.5) * 1.5,
+          0.25,
+          1.1
+        );
+      }
+
+      // 4. Update AI with rubber-banding, lane variety, slipstream detection & Kart-to-Kart Collision
+      const playerProg = p.lap + p.t;
       let aheadCount = 0;
+      let draftingNow = false;
+
       this.ais.forEach((ai) => {
         const aiProg = ai.lap + ai.t;
         if (aiProg > playerProg) aheadCount++;
-        let aiSpeed = ai.baseSpeed;
-        if (aiProg < playerProg - 0.04) {
-          aiSpeed *= 1.18; // catch up!
-        } else if (aiProg > playerProg + 0.08) {
-          aiSpeed *= 0.92; // keep race close
+
+        // Slipstream check (player right behind AI)
+        const progDiff = aiProg - playerProg;
+        if (progDiff > 0.008 && progDiff < 0.032 && Math.abs(p.lateral - ai.lateral) < 0.36) {
+          draftingNow = true;
         }
+
+        let aiTargetSpeed = ai.baseSpeed;
+        if (aiProg < playerProg - 0.04) {
+          aiTargetSpeed *= 1.18;
+        } else if (aiProg > playerProg + 0.08) {
+          aiTargetSpeed *= 0.92;
+        }
+        ai.speed += (aiTargetSpeed - ai.speed) * Math.min(1, dt * 4);
 
         // Smooth AI lane changes
         ai.laneTimer -= dt;
@@ -427,30 +768,96 @@ export class RacingGame {
         }
         const prevLat = ai.lateral;
         ai.lateral += (ai.targetLateral - ai.lateral) * Math.min(1, dt * 2.2);
-        ai.tilt = -(ai.lateral - prevLat) * 4;
+        const latDelta = ai.lateral - prevLat;
+        ai.tilt = Math.max(-0.18, Math.min(0.18, -latDelta * 4));
+        ai.steerAngle = Math.max(-0.32, Math.min(0.32, -latDelta * 10));
+
+        // AI jump gravity
+        if (ai.yPos > 0 || ai.yVel > 0) {
+          ai.yPos += ai.yVel * dt;
+          ai.yVel -= 34 * dt;
+          if (ai.yPos <= 0) {
+            ai.yPos = 0;
+            ai.yVel = 0;
+            ai.squash = 0.1;
+          }
+        }
+        ai.squash *= Math.pow(0.84, dt60);
 
         const prevAiT = ai.t;
-        ai.t = (ai.t + aiSpeed * dt60) % 1;
+        ai.t = ((ai.t + ai.speed * dt60) % 1 + 1) % 1;
         if (ai.t < prevAiT) ai.lap++;
-        this.updateKartTransform(ai, 0, dt60);
+        this.updateKartTransform(ai, ai.yPos, dt60);
 
-        const dist = this.player.mesh.position.distanceTo(ai.mesh.position);
+        // Player vs AI Collision (with cooldown so it doesn't spam)
+        const dist = p.mesh.position.distanceTo(ai.mesh.position);
         if (dist < 3.0) {
-          const pushDir = this.player.lateral >= ai.lateral ? 1 : -1;
-          ai.lateral = Math.max(-1, Math.min(1, ai.lateral - pushDir * 0.14));
+          const pushDir = p.lateral >= ai.lateral ? 1 : -1;
+          ai.lateral = Math.max(-1, Math.min(1, ai.lateral - pushDir * 0.15));
           ai.targetLateral = ai.lateral;
-          if (this.player.starTimer <= 0 && this.player.bubbleTimer <= 0) {
-            this.player.lateral = Math.max(-1, Math.min(1, this.player.lateral + pushDir * 0.1));
-            this.player.slowTimer = Math.max(this.player.slowTimer, 15);
+          if (p.hitCooldown <= 0) {
+            p.hitCooldown = 0.35;
+            this.cameraShake = Math.max(this.cameraShake, 0.22);
+            if (p.starTimer <= 0 && p.bubbleTimer <= 0) {
+              p.lateralVel += pushDir * 1.4;
+              p.slowTimer = Math.max(p.slowTimer, 15);
+            }
+            try { sound.playBoing(); } catch (_) {}
           }
-          try { sound.playBoing(); } catch (_) {}
         }
       });
+
+      // AI vs AI pairwise separation so opponents don't overlap each other
+      for (let i = 0; i < this.ais.length; i++) {
+        for (let j = i + 1; j < this.ais.length; j++) {
+          const a = this.ais[i];
+          const b = this.ais[j];
+          const dSq = a.mesh.position.distanceToSquared(b.mesh.position);
+          if (dSq < 8.4) {
+            const dir = a.lateral >= b.lateral ? 1 : -1;
+            a.lateral = Math.max(-1, Math.min(1, a.lateral + dir * 0.08));
+            b.lateral = Math.max(-1, Math.min(1, b.lateral - dir * 0.08));
+          }
+        }
+      }
+
+      // Slipstream timer update
+      if (draftingNow) {
+        p.slipstreamTime += dt;
+        p.slipstreamActive = p.slipstreamTime >= 0.8;
+      } else {
+        p.slipstreamTime = Math.max(0, p.slipstreamTime - dt * 1.5);
+        p.slipstreamActive = false;
+      }
 
       const currentRank = 1 + aheadCount;
       if (currentRank !== this.lastReportedRank) {
         this.lastReportedRank = currentRank;
         this.callbacks.onRankChange?.(currentRank, 1 + this.ais.length);
+      }
+
+      // Jump Ramps collisions (Player & AI)
+      if (this.track.jumpRamps) {
+        this.track.jumpRamps.forEach((ramp) => {
+          if (ramp.userData.cooldown > 0) {
+            ramp.userData.cooldown = Math.max(0, ramp.userData.cooldown - dt);
+          }
+          if (
+            ramp.userData.cooldown <= 0 &&
+            p.yPos <= 0.2 &&
+            ramp.position.distanceTo(p.mesh.position) < 3.6
+          ) {
+            ramp.userData.cooldown = 0.8;
+            p.yVel = 14.5;
+            p.boostTimer = Math.max(p.boostTimer, 35);
+            try { sound.playBoing(); } catch (_) {}
+          }
+          this.ais.forEach((ai) => {
+            if (ai.yPos <= 0.2 && ramp.position.distanceTo(ai.mesh.position) < 3.4) {
+              ai.yVel = 13.5;
+            }
+          });
+        });
       }
 
       // Boost Pads collisions
@@ -460,15 +867,15 @@ export class RacingGame {
             pad.userData.cooldown = Math.max(0, pad.userData.cooldown - dt);
             return;
           }
-          if (pad.position.distanceTo(this.player.mesh.position) < 3.4) {
+          if (pad.position.distanceTo(p.mesh.position) < 3.4) {
             pad.userData.cooldown = 1.2;
-            this.player.boostTimer = Math.max(this.player.boostTimer, 75);
+            p.boostTimer = Math.max(p.boostTimer, 75);
             try { sound.playBoost(); } catch (_) {}
           }
         });
       }
 
-      // Coin collisions
+      // Coin collisions + burst particles
       if (this.track.coins) {
         this.track.coins.forEach((coin) => {
           coin.rotation.y += 0.06 * dt60;
@@ -480,12 +887,25 @@ export class RacingGame {
             }
             return;
           }
-          if (coin.position.distanceTo(this.player.mesh.position) < 2.8) {
+          if (coin.position.distanceTo(p.mesh.position) < 2.8) {
             coin.userData.active = false;
             coin.visible = false;
             coin.userData.respawnTimer = 240;
-            this.player.coins++;
-            this.callbacks.onCoinChange(this.player.coins);
+            p.coins++;
+            this.callbacks.onCoinChange(p.coins);
+            for (let k = 0; k < 6; k++) {
+              this.spawnParticle(
+                'coin',
+                coin.position.x,
+                coin.position.y,
+                coin.position.z,
+                (Math.random() - 0.5) * 6,
+                2.5 + Math.random() * 3,
+                (Math.random() - 0.5) * 6,
+                0.35,
+                1.0
+              );
+            }
             try { sound.playCoin(); } catch (_) {}
           }
         });
@@ -502,15 +922,16 @@ export class RacingGame {
             }
             return;
           }
-          const dist = obs.position.distanceTo(this.player.mesh.position);
+          const dist = obs.position.distanceTo(p.mesh.position);
           if (dist < 3.0) {
             obs.userData.active = false;
             obs.visible = false;
             obs.userData.respawnTimer = 180;
             sound.playBoing();
-            if (this.player.starTimer <= 0 && this.player.bubbleTimer <= 0) {
-              this.player.slowTimer = 45;
-              this.player.bounceTimer = 20;
+            this.cameraShake = Math.max(this.cameraShake, 0.24);
+            if (p.starTimer <= 0 && p.bubbleTimer <= 0) {
+              p.slowTimer = 45;
+              p.bounceTimer = 20;
             }
           }
         });
@@ -528,14 +949,14 @@ export class RacingGame {
           }
           return;
         }
-        const dist = box.position.distanceTo(this.player.mesh.position);
+        const dist = box.position.distanceTo(p.mesh.position);
         if (dist < 3.2) {
           box.userData.active = false;
           box.visible = false;
           box.userData.respawnTimer = 180;
-          if (!this.player.item) {
+          if (!p.item) {
             const picked = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-            this.player.item = picked;
+            p.item = picked;
             this.callbacks.onItemChange(picked);
             sound.playPickup();
           }
@@ -543,49 +964,89 @@ export class RacingGame {
       });
     }
 
-    // Animated track scenery
+    // Update pooled particles & ambient scenery
+    this.updateParticles(dt);
+
     if (this.track && this.track.animatedProps) {
       const time = this.elapsedTime * 2.0;
-      this.track.animatedProps.forEach((p) => {
-        if (p.type === 'bob') {
-          p.mesh.position.y = p.baseY + Math.abs(Math.sin(time + p.phase)) * 0.35;
-        } else if (p.type === 'float') {
-          p.mesh.position.y = p.baseY + Math.sin(time * 0.8 + p.phase) * 0.9;
-        } else if (p.type === 'swim') {
-          p.mesh.position.y = p.baseY + Math.sin(time + p.phase) * 0.6;
-          p.mesh.rotation.y += 0.015 * dt60;
+      this.track.animatedProps.forEach((prop) => {
+        if (prop.type === 'bob') {
+          prop.mesh.position.y = prop.baseY + Math.abs(Math.sin(time + prop.phase)) * 0.35;
+        } else if (prop.type === 'float') {
+          prop.mesh.position.y = prop.baseY + Math.sin(time * 0.8 + prop.phase) * 0.9;
+        } else if (prop.type === 'swim') {
+          prop.mesh.position.y = prop.baseY + Math.sin(time + prop.phase) * 0.6;
+          prop.mesh.rotation.y += 0.015 * dt60;
         }
       });
     }
 
-    // Smooth Third-Person Follow Camera + Dynamic Boost FOV
+    if (this.track && this.track.ambientParticles) {
+      const amb = this.track.ambientParticles;
+      const posAttr = amb.geometry.getAttribute('position');
+      const meta = amb.userData.meta;
+      const isRising = amb.userData.isRising;
+      for (let i = 0; i < meta.length; i++) {
+        const m = meta[i];
+        let y = posAttr.getY(i);
+        if (isRising) {
+          y += m.speed * dt * 2.2;
+          if (y > 28) y = 2;
+        } else {
+          y = m.baseY + Math.sin(this.elapsedTime * m.speed + m.phase) * 1.4;
+        }
+        posAttr.setY(i, y);
+      }
+      posAttr.needsUpdate = true;
+    }
+
+    // Smooth Third-Person Follow Camera + Bounded Shake + Dynamic Boost FOV
     if (this.player && this.track) {
       const marker = this.player.mesh.userData.playerMarker;
       if (marker) {
         marker.position.y = marker.userData.baseY + Math.sin(this.elapsedTime * 5) * 0.18;
         marker.rotation.y += 0.04 * dt60;
       }
+
+      const safeT = ((this.player.t % 1) + 1) % 1;
       const kartPos = this.player.mesh.position;
-      this.track.curve.getTangentAt(this.player.t % 1, this._tmpTan).normalize();
+      this.track.curve.getTangentAt(safeT, this._tmpTan);
+      if (this._tmpTan.lengthSq() > 1e-6) this._tmpTan.normalize();
+      else this._tmpTan.set(0, 0, 1);
+
       this._tmpCamPos
         .copy(kartPos)
         .addScaledVector(this._tmpTan, -11)
         .add(this._tmpCamUp);
 
       const camLerp = 1 - Math.exp(-9 * dt);
-      this.camera.position.lerp(this._tmpCamPos, camLerp);
+      this.camBasePos.lerp(this._tmpCamPos, camLerp);
+      this.camera.position.copy(this.camBasePos);
+
+      // Apply bounded temporary camera shake AFTER lerp (never drifts or clips kart)
+      if (this.cameraShake > 0.005) {
+        const s = Math.min(0.25, this.cameraShake);
+        this.camera.position.x += (Math.random() - 0.5) * 2 * s;
+        this.camera.position.y += (Math.random() - 0.5) * 2 * s;
+        this.cameraShake *= Math.pow(0.82, dt60);
+      } else {
+        this.cameraShake = 0;
+      }
 
       this._tmpCamLook.copy(kartPos).addScaledVector(this._tmpTan, 5);
       this._tmpCamLook.y += 1.2;
       this.camera.lookAt(this._tmpCamLook);
 
-      const targetBoostFov = this.player.boostTimer > 0 ? 8 : 0;
+      const targetBoostFov =
+        this.player.boostTimer > 0 ? 9 : this.player.slipstreamActive ? 4.5 : 0;
       this.boostFovOffset += (targetBoostFov - this.boostFovOffset) * Math.min(1, dt * 6);
       const desiredFov = Math.min(110, this.baseFov + this.boostFovOffset);
       if (Math.abs(this.camera.fov - desiredFov) > 0.05) {
         this.camera.fov = desiredFov;
         this.camera.updateProjectionMatrix();
       }
+
+      this.drawMinimap();
     }
 
     this.renderer.render(this.scene, this.camera);

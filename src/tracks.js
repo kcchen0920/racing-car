@@ -100,10 +100,40 @@ function createGroundTexture(baseColor, accentColor) {
   return tex;
 }
 
+function createSkyDomeTexture(skyHex) {
+  const topColor = new THREE.Color(skyHex);
+  const horizonColor = topColor.clone().lerp(new THREE.Color(0xffffff), 0.58);
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, `#${topColor.getHexString()}`);
+  grad.addColorStop(0.55, `#${horizonColor.getHexString()}`);
+  grad.addColorStop(1, '#ffffff');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 16, 256);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export function buildTrack(scene, themeId) {
   const theme = TRACK_THEMES.find((t) => t.id === themeId) || TRACK_THEMES[0];
   scene.background = new THREE.Color(theme.skyColor);
-  scene.fog = new THREE.Fog(theme.skyColor, 200, 560);
+  scene.fog = new THREE.FogExp2(theme.skyColor, 0.002);
+
+  // Gradient Sky Dome
+  const skyDome = new THREE.Mesh(
+    new THREE.SphereGeometry(540, 24, 16),
+    new THREE.MeshBasicMaterial({
+      map: createSkyDomeTexture(theme.skyColor),
+      side: THREE.BackSide,
+      fog: false,
+      depthWrite: false,
+    })
+  );
+  scene.add(skyDome);
 
   const points = [
     new THREE.Vector3(0, 0, 0),
@@ -349,6 +379,82 @@ export function buildTrack(scene, themeId) {
     boostPads.push(pad);
   }
 
+  // Jump Ramps (striped wedges that launch karts)
+  const jumpRamps = [];
+  const rampCanvas = document.createElement('canvas');
+  rampCanvas.width = 128;
+  rampCanvas.height = 128;
+  const rCtx = rampCanvas.getContext('2d');
+  rCtx.fillStyle = '#ff7043';
+  rCtx.fillRect(0, 0, 128, 128);
+  rCtx.fillStyle = '#fff59d';
+  for (let s = 0; s < 4; s++) {
+    rCtx.fillRect(0, s * 32, 128, 14);
+  }
+  const rampTex = new THREE.CanvasTexture(rampCanvas);
+  rampTex.colorSpace = THREE.SRGBColorSpace;
+  const rampGeo = new THREE.BoxGeometry(5.2, 0.75, 5.8);
+  const rampMat = new THREE.MeshStandardMaterial({
+    map: rampTex,
+    roughness: 0.45,
+    metalness: 0.05,
+  });
+  [0.24, 0.58, 0.84].forEach((t, idx) => {
+    const pt = curve.getPointAt(t);
+    const tan = curve.getTangentAt(t).normalize();
+    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+    const offset = idx === 1 ? -2.8 : idx === 2 ? 2.8 : 0;
+    const pos = pt.clone().addScaledVector(norm, offset);
+    const rampHolder = new THREE.Group();
+    rampHolder.position.set(pos.x, 0.02, pos.z);
+    rampHolder.lookAt(pos.x + tan.x, 0.02, pos.z + tan.z);
+    const wedge = new THREE.Mesh(rampGeo, rampMat);
+    wedge.position.set(0, 0.28, 0);
+    wedge.rotation.x = -0.22;
+    wedge.castShadow = true;
+    wedge.receiveShadow = true;
+    rampHolder.add(wedge);
+    rampHolder.userData = { cooldown: 0 };
+    scene.add(rampHolder);
+    jumpRamps.push(rampHolder);
+  });
+
+  // Ambient Theme Particles (floating petals, embers, sand, or bubbles)
+  const particleCount = 140;
+  const pPositions = new Float32Array(particleCount * 3);
+  const pMeta = [];
+  for (let i = 0; i < particleCount; i++) {
+    const t = Math.random();
+    const pt = curve.getPointAt(t);
+    const px = pt.x + (Math.random() - 0.5) * 90;
+    const py = 2 + Math.random() * 24;
+    const pz = pt.z + (Math.random() - 0.5) * 90;
+    pPositions[i * 3] = px;
+    pPositions[i * 3 + 1] = py;
+    pPositions[i * 3 + 2] = pz;
+    pMeta.push({ baseY: py, speed: 0.6 + Math.random() * 1.4, phase: Math.random() * Math.PI * 2 });
+  }
+  const ambGeo = new THREE.BufferGeometry();
+  ambGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+  const ambColor =
+    theme.id === 'underwater'
+      ? 0xe0f7fa
+      : theme.id === 'desert'
+      ? 0xffe082
+      : theme.id === 'dino'
+      ? 0xffab40
+      : 0xffffff;
+  const ambMat = new THREE.PointsMaterial({
+    color: ambColor,
+    size: theme.id === 'underwater' ? 1.5 : 1.1,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+  });
+  const ambientParticles = new THREE.Points(ambGeo, ambMat);
+  ambientParticles.userData = { meta: pMeta, isRising: theme.id === 'underwater' };
+  scene.add(ambientParticles);
+
   // Vivid Illustrated Animals & Plants around the track
   const animatedProps = [];
   for (let i = 0; i < 88; i++) {
@@ -377,5 +483,16 @@ export function buildTrack(scene, themeId) {
     });
   }
 
-  return { curve, roadWidth, itemBoxes, obstacles, coins, boostPads, theme, animatedProps };
+  return {
+    curve,
+    roadWidth,
+    itemBoxes,
+    obstacles,
+    coins,
+    boostPads,
+    jumpRamps,
+    ambientParticles,
+    theme,
+    animatedProps,
+  };
 }
