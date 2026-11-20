@@ -343,18 +343,28 @@ function getScreenAngle() {
   return typeof window.orientation === 'number' ? window.orientation : 0;
 }
 
+function isNaturalLandscape(angle) {
+  const type = window.screen?.orientation?.type || '';
+  if (type.startsWith('landscape') && (angle === 0 || angle === 180)) return true;
+  if (type.startsWith('portrait') && (angle === 90 || angle === 270)) return true;
+  return false;
+}
+
 function onDeviceOrientation(e) {
   if (!gyroEnabled || game.mode !== 'race' || game.paused) return;
   const gamma = typeof e.gamma === 'number' ? e.gamma : null;
   const beta = typeof e.beta === 'number' ? e.beta : null;
   if (gamma === null && beta === null) return;
+  // Ignore dummy 0/0 readings emitted by some browsers before sensor warms up
+  if (gamma === 0 && beta === 0 && neutralTilt === null) return;
 
   const angle = ((getScreenAngle() % 360) + 360) % 360;
+  const naturalLand = isNaturalLandscape(angle);
   let rawTilt = 0;
   if (angle === 90) {
-    rawTilt = beta ?? 0;
+    rawTilt = naturalLand ? -(beta ?? 0) : (beta ?? 0);
   } else if (angle === 270) {
-    rawTilt = -(beta ?? 0);
+    rawTilt = naturalLand ? (beta ?? 0) : -(beta ?? 0);
   } else if (angle === 180) {
     rawTilt = -(gamma ?? 0);
   } else {
@@ -362,10 +372,15 @@ function onDeviceOrientation(e) {
   }
 
   if (neutralTilt === null) {
-    neutralTilt = Math.max(-20, Math.min(20, rawTilt));
+    // Do NOT clamp neutralTilt: whatever angle the player holds the tablet at is 0° straight!
+    neutralTilt = rawTilt;
   }
 
-  const delta = rawTilt - neutralTilt;
+  let delta = rawTilt - neutralTilt;
+  // Wrap-around guard for +/-180 boundary
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
+
   const deadzone = 4;
   const maxTilt = 26;
   let target = 0;

@@ -28,6 +28,15 @@ export const KART_TYPES = [
     driverColor: 0x43a047,
     earType: 'spike',
   },
+  {
+    id: 'camel',
+    name: '沙漠駱駝車',
+    emoji: '🐪',
+    bodyColor: 0xffa726,
+    accentColor: 0xffe082,
+    driverColor: 0xd7a86e,
+    earType: 'camel',
+  },
 ];
 
 export function createKartMesh(typeId, customColor = null, heroPhotoUrl = null, isPlayer = false) {
@@ -206,6 +215,22 @@ export function createKartMesh(typeId, customColor = null, heroPhotoUrl = null, 
       ear.position.set(ex, 2.35, -0.1);
       chassisGroup.add(ear);
     });
+  } else if (cfg.earType === 'camel') {
+    const earGeo = new THREE.SphereGeometry(0.18, 10, 10);
+    [-0.52, 0.52].forEach((ex) => {
+      const ear = new THREE.Mesh(earGeo, headMat);
+      ear.position.set(ex, 2.02, -0.08);
+      chassisGroup.add(ear);
+    });
+    const snout = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.28, 6, 8), headMat);
+    snout.rotation.x = Math.PI / 2;
+    snout.position.set(0, 1.42, 0.56);
+    chassisGroup.add(snout);
+    const hump = new THREE.Mesh(new THREE.SphereGeometry(0.48, 12, 10), headMat);
+    hump.scale.set(0.9, 1.15, 1.1);
+    hump.position.set(0, 1.12, -0.68);
+    hump.castShadow = true;
+    chassisGroup.add(hump);
   } else {
     const spikeGeo = new THREE.ConeGeometry(0.2, 0.45, 6);
     const spikeMat = new THREE.MeshStandardMaterial({ color: cfg.accentColor, roughness: 0.5 });
