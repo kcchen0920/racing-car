@@ -285,21 +285,7 @@ export function buildTrack(scene, themeId) {
     });
   });
 
-  // 3D Fluffy Clouds & Background Hills
-  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  for (let c = 0; c < 16; c++) {
-    const cloud = new THREE.Group();
-    const angle = (c / 16) * Math.PI * 2;
-    const rad = 220 + (c % 3) * 55;
-    [-2.5, 0, 2.5].forEach((ox, idx) => {
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(idx === 1 ? 4.5 : 3.2, 10, 10), cloudMat);
-      puff.position.set(ox, idx === 1 ? 1 : 0, 0);
-      cloud.add(puff);
-    });
-    cloud.position.set(Math.cos(angle) * rad + 100, 36 + (c % 3) * 8, Math.sin(angle) * rad - 20);
-    scene.add(cloud);
-  }
-
+  // Background Hills
   const hillColor = theme.id === 'desert' ? 0xfbc02d : theme.id === 'dino' ? 0x5d4037 : theme.id === 'underwater' ? 0x00838f : 0x689f38;
   const hillMat = new THREE.MeshLambertMaterial({ color: hillColor });
   for (let h = 0; h < 14; h++) {
@@ -313,8 +299,178 @@ export function buildTrack(scene, themeId) {
     scene.add(hill);
   }
 
-  // Interactive Road Obstacles (temporarily disabled for debugging)
+  // 3D Theme Landmarks + Moving Fluffy Clouds + Glowing Sun
+  const clouds = [];
+  const cloudMat = new THREE.MeshStandardMaterial({
+    color: theme.id === 'underwater' ? 0xb2ebf2 : 0xffffff,
+    roughness: 0.9,
+    metalness: 0,
+    transparent: true,
+    opacity: theme.id === 'underwater' ? 0.45 : 0.92,
+  });
+  const puffGeo = new THREE.SphereGeometry(7, 10, 10);
+  for (let i = 0; i < 14; i++) {
+    const cloud = new THREE.Group();
+    const offsets = [
+      [0, 0, 0, 1.0],
+      [-6, -1.2, 1, 0.75],
+      [6, -1.0, -1, 0.8],
+      [2, 2.2, 0.5, 0.68],
+    ];
+    offsets.forEach(([ox, oy, oz, sc]) => {
+      const puff = new THREE.Mesh(puffGeo, cloudMat);
+      puff.position.set(ox, oy, oz);
+      puff.scale.setScalar(sc);
+      cloud.add(puff);
+    });
+    const ang = (i / 14) * Math.PI * 2;
+    const rad = 180 + (i % 3) * 85;
+    cloud.position.set(
+      Math.cos(ang) * rad + 90,
+      75 + (i % 4) * 14,
+      Math.sin(ang) * rad - 20
+    );
+    cloud.userData = { speed: 2.5 + (i % 3) * 1.4, angle: ang, rad };
+    scene.add(cloud);
+    clouds.push(cloud);
+  }
+
+  // Glowing Sun / Underwater Light Orb
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(24, 16, 16),
+    new THREE.MeshBasicMaterial({
+      color: theme.id === 'underwater' ? 0xe0f7fa : 0xfff59d,
+      fog: false,
+    })
+  );
+  sun.position.set(220, 180, -240);
+  scene.add(sun);
+
+  // Theme-specific 3D Landmarks around the track
+  if (theme.id === 'desert') {
+    const pyrGeo = new THREE.ConeGeometry(42, 54, 4);
+    const pyrMat = new THREE.MeshStandardMaterial({ color: 0xffca28, roughness: 0.78 });
+    [
+      [180, 27, 45, 1.0],
+      [-140, 22, 60, 0.82],
+      [40, 32, -160, 1.15],
+    ].forEach(([lx, ly, lz, sc]) => {
+      const pyr = new THREE.Mesh(pyrGeo, pyrMat);
+      pyr.position.set(lx, ly, lz);
+      pyr.scale.setScalar(sc);
+      pyr.rotation.y = Math.PI / 4;
+      scene.add(pyr);
+    });
+  } else if (theme.id === 'dino') {
+    const volcGeo = new THREE.ConeGeometry(46, 62, 12);
+    const volcMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.9 });
+    const lavaGeo = new THREE.CylinderGeometry(9, 12, 4, 10);
+    const lavaMat = new THREE.MeshBasicMaterial({ color: 0xff5722 });
+    [
+      [175, 31, 40],
+      [-135, 31, 45],
+      [60, 31, -155],
+    ].forEach(([lx, ly, lz]) => {
+      const volc = new THREE.Mesh(volcGeo, volcMat);
+      volc.position.set(lx, ly, lz);
+      const lava = new THREE.Mesh(lavaGeo, lavaMat);
+      lava.position.set(lx, ly + 29, lz);
+      scene.add(volc, lava);
+    });
+  } else if (theme.id === 'zoo') {
+    const bGeo = new THREE.SphereGeometry(9, 14, 14);
+    const bColors = [0xff5252, 0xffeb3b, 0x4fc3f7, 0xff80ab, 0x66bb6a];
+    bColors.forEach((col, i) => {
+      const ang = (i / bColors.length) * Math.PI * 2 + 0.4;
+      const b = new THREE.Mesh(bGeo, new THREE.MeshStandardMaterial({ color: col, roughness: 0.3 }));
+      b.scale.set(1, 1.25, 1);
+      b.position.set(Math.cos(ang) * 165 + 80, 42 + (i % 3) * 8, Math.sin(ang) * 165 - 20);
+      scene.add(b);
+    });
+  } else if (theme.id === 'underwater') {
+    const jellyGeo = new THREE.SphereGeometry(11, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+    const jellyMat = new THREE.MeshStandardMaterial({
+      color: 0xff80ab,
+      transparent: true,
+      opacity: 0.7,
+      roughness: 0.25,
+    });
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2;
+      const j = new THREE.Mesh(jellyGeo, jellyMat);
+      j.position.set(Math.cos(ang) * 155 + 90, 32 + (i % 3) * 10, Math.sin(ang) * 155 - 20);
+      scene.add(j);
+    }
+  }
+
+  // Interactive 3D Theme Obstacles (cute, non-punishing, can be blasted away with Star/Bubble!)
   const obstacles = [];
+  const createObstacleMesh = (id, idx) => {
+    const g = new THREE.Group();
+    if (id === 'desert') {
+      const cMat = new THREE.MeshStandardMaterial({ color: 0x43a047, roughness: 0.7 });
+      const trunk = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 1.5, 6, 8), cMat);
+      trunk.position.y = 1.1;
+      const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.7, 5, 8), cMat);
+      armL.position.set(-0.6, 1.2, 0);
+      armL.rotation.z = 0.7;
+      const armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.7, 5, 8), cMat);
+      armR.position.set(0.6, 1.35, 0);
+      armR.rotation.z = -0.7;
+      g.add(trunk, armL, armR);
+    } else if (id === 'underwater') {
+      const crabMat = new THREE.MeshStandardMaterial({ color: 0xff5252, roughness: 0.4 });
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.85, 12, 10), crabMat);
+      body.scale.set(1.25, 0.65, 0.9);
+      body.position.y = 0.65;
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+      const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), eyeMat);
+      eyeL.position.set(-0.32, 1.15, 0.45);
+      const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), eyeMat);
+      eyeR.position.set(0.32, 1.15, 0.45);
+      g.add(body, eyeL, eyeR);
+    } else if (id === 'dino' || idx % 2 === 1) {
+      const logMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.85 });
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.62, 2.2, 10), logMat);
+      log.rotation.z = Math.PI / 2;
+      log.position.y = 0.6;
+      g.add(log);
+    } else {
+      // Cute bright banana peel cone
+      const bMat = new THREE.MeshStandardMaterial({ color: 0xffeb3b, roughness: 0.35 });
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.4, 8), bMat);
+      cone.position.y = 0.7;
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshStandardMaterial({ color: 0x5d4037 }));
+      tip.position.y = 1.4;
+      g.add(cone, tip);
+    }
+    g.traverse((o) => {
+      o.castShadow = true;
+    });
+    return g;
+  };
+
+  [0.12, 0.21, 0.31, 0.43, 0.52, 0.65, 0.77, 0.88].forEach((t, idx) => {
+    const pt = curve.getPointAt(t);
+    const tan = curve.getTangentAt(t).normalize();
+    const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+    const side = idx % 2 === 0 ? 1 : -1;
+    const offset = side * (2.6 + (idx % 3) * 1.4);
+    const pos = pt.clone().addScaledVector(norm, offset);
+    const obs = createObstacleMesh(theme.id, idx);
+    obs.position.set(pos.x, 0.02, pos.z);
+    obs.userData = {
+      active: true,
+      respawnTimer: 0,
+      knockbackTimer: 0,
+      kvx: 0,
+      kvy: 0,
+      kvz: 0,
+      basePos: new THREE.Vector3(pos.x, 0.02, pos.z),
+    };
+    scene.add(obs);
+    obstacles.push(obs);
+  });
 
   // Collectible Coins (⭐)
   const coins = [];
@@ -492,6 +648,7 @@ export function buildTrack(scene, themeId) {
     boostPads,
     jumpRamps,
     ambientParticles,
+    clouds,
     theme,
     animatedProps,
   };

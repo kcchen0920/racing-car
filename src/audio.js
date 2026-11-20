@@ -5,6 +5,9 @@ class SoundManager {
     this.muted = false;
     this.bgmTimer = null;
     this.bgmStep = 0;
+    this.engineOsc = null;
+    this.engineGain = null;
+    this.engineFilter = null;
   }
 
   init() {
@@ -79,6 +82,55 @@ class SoundManager {
     notes.forEach((n, i) => {
       setTimeout(() => this.playTone(n, 0.25, 'triangle', 0.28), i * 120);
     });
+  }
+
+  playRouletteTick(step = 0) {
+    this.playTone(540 + (step % 3) * 110, 0.05, 'sine', 0.14);
+  }
+
+  startEngine() {
+    if (!this.ctx || this.engineOsc) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(65, this.ctx.currentTime);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(220, this.ctx.currentTime);
+      gain.gain.setValueAtTime(this.muted ? 0.0001 : 0.032, this.ctx.currentTime);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      this.engineOsc = osc;
+      this.engineFilter = filter;
+      this.engineGain = gain;
+    } catch {}
+  }
+
+  updateEngine(speedRatio = 0, isBoosting = false, isAirborne = false) {
+    if (!this.ctx || !this.engineOsc || !this.engineGain || !this.engineFilter) return;
+    const now = this.ctx.currentTime;
+    const clamped = Math.max(0, Math.min(2, speedRatio));
+    const targetFreq = 62 + clamped * 68 + (isBoosting ? 28 : 0) + (isAirborne ? 18 : 0);
+    const targetCutoff = isBoosting ? 460 : 210 + clamped * 140;
+    const targetVol = this.muted ? 0.0001 : isBoosting ? 0.048 : 0.026 + clamped * 0.012;
+    this.engineOsc.frequency.setTargetAtTime(targetFreq, now, 0.06);
+    this.engineFilter.frequency.setTargetAtTime(targetCutoff, now, 0.06);
+    this.engineGain.gain.setTargetAtTime(targetVol, now, 0.06);
+  }
+
+  stopEngine() {
+    if (this.engineOsc) {
+      try {
+        this.engineOsc.stop();
+        this.engineOsc.disconnect();
+      } catch {}
+      this.engineOsc = null;
+      this.engineFilter = null;
+      this.engineGain = null;
+    }
   }
 
   startBGM() {

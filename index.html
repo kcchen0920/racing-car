@@ -14,8 +14,9 @@
   <div id="game-container"></div>
 
   <!-- 選單畫面 -->
-  <div id="menu-overlay" class="overlay">
+  <div id="menu-overlay" class="overlay menu-showroom">
     <h1>🏎️ 米果哥小小賽車手</h1>
+    <div id="showroom-spacer" aria-hidden="true"></div>
     <div id="hero-avatar-box" class="hero-box">
       <img id="hero-preview" class="hero-preview hidden" alt="米果哥" />
       <label for="hero-upload" class="upload-btn">📸 放入米果哥照片當主角</label>
@@ -33,15 +34,29 @@
 
   <!-- 遊戲中 HUD -->
   <div id="hud" class="hidden">
+    <div id="speed-lines" class="hidden"></div>
     <div id="lap-badge">🏁 第 1 / 2 圈</div>
     <div id="coin-badge">⭐ 0</div>
     <div id="rank-badge">🏆 第 1 / 8 名</div>
-    <button id="mute-btn" class="mute-btn">🔊</button>
+    <button id="pause-btn" class="pause-btn" aria-label="暫停">⏸️</button>
+    <button id="mute-btn" class="mute-btn" aria-label="靜音">🔊</button>
     <canvas id="minimap" width="120" height="120"></canvas>
+    <div id="speed-badge">0 km/h</div>
+    <div id="action-toast" class="hidden"></div>
     <div id="countdown"></div>
     <div id="touch-left" class="touch-zone"><div class="steer-hint">⬅️</div></div>
     <div id="touch-right" class="touch-zone"><div class="steer-hint">➡️</div></div>
     <button id="item-btn" class="hidden">🍄</button>
+  </div>
+
+  <!-- 暫停選單 -->
+  <div id="pause-overlay" class="overlay pause-overlay hidden">
+    <h1>⏸️ 遊戲暫停</h1>
+    <div style="display: flex; flex-direction: column; gap: 14px; align-items: center; margin-top: 8px;">
+      <button id="resume-btn" class="start-btn">▶️ 繼續比賽</button>
+      <button id="restart-btn" class="start-btn" style="background: #ffd54f; color: #d84315; box-shadow: 0 6px 0 #fbc02d;">🔄 重玩這關</button>
+      <button id="pause-home-btn" class="start-btn" style="background: #4fc3f7; box-shadow: 0 6px 0 #0288d1;">🏠 回首頁</button>
+    </div>
   </div>
 
   <!-- 過關與故事劇情畫面 -->

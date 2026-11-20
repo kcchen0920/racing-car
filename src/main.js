@@ -17,12 +17,33 @@ const CANDY_COLORS = [
 
 const menuEl = document.getElementById('menu-overlay');
 const finishEl = document.getElementById('finish-overlay');
+const pauseEl = document.getElementById('pause-overlay');
 const hudEl = document.getElementById('hud');
 const lapBadge = document.getElementById('lap-badge');
 const coinBadge = document.getElementById('coin-badge');
 const rankBadge = document.getElementById('rank-badge');
+const speedBadge = document.getElementById('speed-badge');
+const actionToast = document.getElementById('action-toast');
+const speedLines = document.getElementById('speed-lines');
 const countdownEl = document.getElementById('countdown');
 const itemBtn = document.getElementById('item-btn');
+let toastTimer = null;
+
+function showActionToast(text) {
+  if (!actionToast) return;
+  actionToast.textContent = text;
+  actionToast.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    actionToast.classList.add('hidden');
+  }, 1300);
+}
+
+function refreshShowroom() {
+  if (!menuEl.classList.contains('hidden')) {
+    game.showShowroom(selectedKart, selectedColor, localStorage.getItem('migou_hero_photo'));
+  }
+}
 
 // Render Kart & Track choices
 const kartRow = document.getElementById('kart-choices');
@@ -34,6 +55,7 @@ KART_TYPES.forEach((k) => {
     selectedKart = k.id;
     document.querySelectorAll('#kart-choices .pick-btn').forEach((b) => b.classList.remove('selected'));
     btn.classList.add('selected');
+    refreshShowroom();
   };
   kartRow.appendChild(btn);
 });
@@ -47,6 +69,7 @@ CANDY_COLORS.forEach((c, idx) => {
     selectedColor = c.hex;
     document.querySelectorAll('#color-choices .color-dot').forEach((d) => d.classList.remove('selected'));
     dot.classList.add('selected');
+    refreshShowroom();
   };
   colorRow.appendChild(dot);
 });
@@ -83,6 +106,7 @@ heroUpload.addEventListener('change', (e) => {
     heroPreview.classList.remove('hidden');
     heroRemove.classList.remove('hidden');
     localStorage.setItem('migou_hero_photo', reader.result);
+    refreshShowroom();
   };
   reader.readAsDataURL(file);
 });
@@ -93,6 +117,7 @@ heroRemove.addEventListener('click', () => {
   heroPreview.classList.add('hidden');
   heroRemove.classList.add('hidden');
   heroUpload.value = '';
+  refreshShowroom();
 });
 
 const STORY_CHAPTERS = {
@@ -142,7 +167,25 @@ const game = new RacingGame(document.getElementById('game-container'), {
   onCountdown: (text) => {
     countdownEl.textContent = text;
   },
+  onSpeedChange: (kmh, isBoosting) => {
+    if (!speedBadge) return;
+    speedBadge.textContent = `${kmh} km/h`;
+    speedBadge.classList.toggle('boosting', Boolean(isBoosting));
+  },
+  onBoostStateChange: (isBoosting) => {
+    if (!speedLines) return;
+    speedLines.classList.toggle('hidden', !isBoosting);
+  },
+  onActionToast: (text) => {
+    showActionToast(text);
+  },
+  onItemRoulette: (emoji) => {
+    itemBtn.textContent = emoji;
+    itemBtn.classList.remove('hidden');
+    itemBtn.classList.add('roulette');
+  },
   onItemChange: (item) => {
+    itemBtn.classList.remove('roulette');
     if (item) {
       itemBtn.textContent = item.emoji;
       itemBtn.classList.remove('hidden');
@@ -181,8 +224,24 @@ function startGame() {
   sound.startBGM();
   menuEl.classList.add('hidden');
   finishEl.classList.add('hidden');
+  pauseEl.classList.add('hidden');
   hudEl.classList.remove('hidden');
+  speedLines.classList.add('hidden');
+  actionToast.classList.add('hidden');
   game.start(selectedKart, selectedTrack, selectedColor, localStorage.getItem('migou_hero_photo'));
+}
+
+function goHome() {
+  sound.stopBGM();
+  sound.stopEngine();
+  game.stopLoop();
+  hudEl.classList.add('hidden');
+  finishEl.classList.add('hidden');
+  pauseEl.classList.add('hidden');
+  speedLines.classList.add('hidden');
+  actionToast.classList.add('hidden');
+  menuEl.classList.remove('hidden');
+  refreshShowroom();
 }
 
 document.getElementById('start-btn').onclick = startGame;
@@ -193,10 +252,28 @@ nextStageBtn.onclick = () => {
     startGame();
   }
 };
-document.getElementById('replay-btn').onclick = () => {
-  finishEl.classList.add('hidden');
-  menuEl.classList.remove('hidden');
+document.getElementById('replay-btn').onclick = goHome;
+
+// Pause menu controls
+const pauseBtn = document.getElementById('pause-btn');
+pauseBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resetAllSteer();
+  sound.stopBGM();
+  game.pause();
+  pauseEl.classList.remove('hidden');
+});
+document.getElementById('resume-btn').onclick = () => {
+  pauseEl.classList.add('hidden');
+  sound.startBGM();
+  game.resume();
 };
+document.getElementById('restart-btn').onclick = startGame;
+document.getElementById('pause-home-btn').onclick = goHome;
+
+// Launch live 3D showroom immediately on menu
+refreshShowroom();
 
 // Touch controls with independent pointerId tracking
 const touchLeft = document.getElementById('touch-left');

@@ -13,6 +13,7 @@ export class RacingGame {
   constructor(container, callbacks) {
     this.container = container;
     this.callbacks = callbacks;
+    this.mode = 'idle'; // 'idle' | 'showroom' | 'race'
     this.running = false;
     this.paused = false;
     this.steerInput = 0; // -1 left, 1 right
@@ -21,11 +22,21 @@ export class RacingGame {
     this.lastFrameTime = 0;
     this.elapsedTime = 0;
     this.countdownTimers = [];
+    this.countdownStep = 0;
+    this.rocketStartReady = false;
+    this.victoryTimer = 0;
+    this.victoryStats = null;
+    this.showroomKart = null;
     this.baseFov = 72;
     this.boostFovOffset = 0;
     this.cameraShake = 0;
     this.particles = [];
     this.particleMats = null;
+    this.skidMarks = [];
+    this.emoteTextures = {};
+    this.activeEmotes = [];
+    this.lastReportedSpeed = -1;
+    this.lastBoostState = false;
     this.minimapCanvas = document.getElementById('minimap');
     this.minimapCtx = this.minimapCanvas ? this.minimapCanvas.getContext('2d') : null;
     this.minimapData = null;
@@ -33,6 +44,7 @@ export class RacingGame {
     // Reusable vectors to avoid per-frame GC allocations
     this._tmpPt = new THREE.Vector3();
     this._tmpTan = new THREE.Vector3();
+    this._tmpTan2 = new THREE.Vector3();
     this._tmpNorm = new THREE.Vector3();
     this._tmpPos = new THREE.Vector3();
     this._tmpLook = new THREE.Vector3();
@@ -97,11 +109,13 @@ export class RacingGame {
     }
     this.countdownTimers.forEach((id) => clearTimeout(id));
     this.countdownTimers = [];
+    sound.stopEngine();
   }
 
   pause() {
     if (this.paused) return;
     this.paused = true;
+    sound.stopEngine();
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -111,10 +125,56 @@ export class RacingGame {
   resume() {
     if (!this.paused) return;
     this.paused = false;
-    if (this.player && this.player.lap <= this.totalLaps) {
+    if (this.mode === 'showroom') {
+      this.lastFrameTime = performance.now();
+      this.rafId = requestAnimationFrame((t) => this.animate(t));
+      return;
+    }
+    if (this.mode === 'race' && this.player && (this.player.lap <= this.totalLaps || this.victoryTimer > 0)) {
+      if (this.running) sound.startEngine();
       this.lastFrameTime = performance.now();
       this.rafId = requestAnimationFrame((t) => this.animate(t));
     }
+  }
+
+  showShowroom(kartId, customColor = null, heroPhotoUrl = null) {
+    this.stopLoop();
+    this.disposeScene();
+    this.mode = 'showroom';
+    this.running = false;
+    this.paused = false;
+    this.player = null;
+    this.track = null;
+    this.boostFovOffset = 0;
+    this.elapsedTime = 0;
+    this.lastFrameTime = performance.now();
+    this.onResize();
+
+    this.scene.background = new THREE.Color(0xfff9f0);
+    this.scene.fog = null;
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xb2ebf2, 1.25);
+    this.scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xfffde7, 1.15);
+    dir.position.set(12, 22, 16);
+    this.scene.add(dir);
+
+    // Cute rotating podium
+    const podium = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.6, 3.0, 0.45, 28),
+      new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.35, metalness: 0.1 })
+    );
+    podium.position.set(0, -0.25, 0);
+    this.scene.add(podium);
+
+    const kart = createKartMesh(kartId, customColor, heroPhotoUrl, false);
+    kart.position.set(0, 0, 0);
+    this.scene.add(kart);
+    this.showroomKart = kart;
+
+    this.camera.position.set(0, 3.4, 7.6);
+    this.camera.lookAt(0, -0.35, 0);
+    this.rafId = requestAnimationFrame((t) => this.animate(t));
   }
 
   disposeScene() {
@@ -155,8 +215,12 @@ export class RacingGame {
       dust: new THREE.MeshBasicMaterial({ color: 0xe0e0e0, transparent: true, opacity: 0.65 }),
       coin: new THREE.MeshBasicMaterial({ color: 0xffd54f, transparent: true, opacity: 0.95 }),
       wind: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }),
+      confettiA: new THREE.MeshBasicMaterial({ color: 0xff5252 }),
+      confettiB: new THREE.MeshBasicMaterial({ color: 0x4fc3f7 }),
+      confettiC: new THREE.MeshBasicMaterial({ color: 0xffeb3b }),
+      confettiD: new THREE.MeshBasicMaterial({ color: 0x69f0ae }),
     };
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 110; i++) {
       const mesh = new THREE.Mesh(geo, this.particleMats.flame);
       mesh.visible = false;
       mesh.frustumCulled = false;
@@ -170,6 +234,106 @@ export class RacingGame {
         maxLife: 1,
         baseScale: 1,
       });
+    }
+  }
+
+  initSkidMarks() {
+    this.skidMarks = [];
+    const geo = new THREE.PlaneGeometry(0.32, 1.15);
+    geo.rotateX(-Math.PI / 2);
+    for (let i = 0; i < 40; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x263238,
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this.skidMarks.push({ mesh, life: 0, maxLife: 1.4 });
+    }
+    this.skidCursor = 0;
+  }
+
+  spawnSkidMark(x, z, tanX, tanZ) {
+    if (!this.skidMarks.length) return;
+    const s = this.skidMarks[this.skidCursor % this.skidMarks.length];
+    this.skidCursor++;
+    s.mesh.position.set(x, 0.045, z);
+    s.mesh.lookAt(x + tanX, 0.045, z + tanZ);
+    s.mesh.material.opacity = 0.45;
+    s.mesh.visible = true;
+    s.life = s.maxLife;
+  }
+
+  updateSkidMarks(dt) {
+    for (let i = 0; i < this.skidMarks.length; i++) {
+      const s = this.skidMarks[i];
+      if (s.life <= 0) continue;
+      s.life -= dt;
+      if (s.life <= 0) {
+        s.mesh.visible = false;
+      } else {
+        s.mesh.material.opacity = 0.45 * (s.life / s.maxLife);
+      }
+    }
+  }
+
+  getEmoteTexture(emoji) {
+    if (this.emoteTextures[emoji]) return this.emoteTextures[emoji];
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.beginPath();
+    ctx.arc(64, 64, 52, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = '68px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, 64, 68);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.emoteTextures[emoji] = tex;
+    return tex;
+  }
+
+  showKartEmote(kart, emoji) {
+    if (!kart || !kart.mesh) return;
+    const existing = this.activeEmotes.find((e) => e.kart === kart);
+    if (existing) {
+      existing.sprite.material.map = this.getEmoteTexture(emoji);
+      existing.sprite.material.needsUpdate = true;
+      existing.life = 1.05;
+      existing.sprite.visible = true;
+      return;
+    }
+    const mat = new THREE.SpriteMaterial({
+      map: this.getEmoteTexture(emoji),
+      transparent: true,
+    });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.5, 1.5, 1);
+    sprite.position.set(0, 3.6, 0);
+    sprite.frustumCulled = false;
+    kart.mesh.add(sprite);
+    this.activeEmotes.push({ kart, sprite, life: 1.05 });
+  }
+
+  updateEmotes(dt) {
+    for (let i = 0; i < this.activeEmotes.length; i++) {
+      const e = this.activeEmotes[i];
+      if (e.life <= 0) continue;
+      e.life -= dt;
+      if (e.life <= 0) {
+        e.sprite.visible = false;
+      } else {
+        e.sprite.position.y = 3.5 + (1.05 - e.life) * 0.7;
+        e.sprite.material.opacity = Math.min(1, e.life * 2.5);
+      }
     }
   }
 
@@ -293,9 +457,19 @@ export class RacingGame {
   start(kartId, trackId, customColor = null, heroPhotoUrl = null) {
     this.stopLoop();
     this.disposeScene();
+    this.mode = 'race';
+    this.showroomKart = null;
     this.paused = false;
     this.boostFovOffset = 0;
     this.cameraShake = 0;
+    this.victoryTimer = 0;
+    this.victoryStats = null;
+    this.countdownStep = 0;
+    this.rocketStartReady = false;
+    this.activeEmotes = [];
+    this.emoteTextures = {};
+    this.lastReportedSpeed = -1;
+    this.lastBoostState = false;
     this.elapsedTime = 0;
     this.lastFrameTime = performance.now();
     this.onResize();
@@ -314,6 +488,7 @@ export class RacingGame {
 
     this.track = buildTrack(this.scene, trackId);
     this.initParticles();
+    this.initSkidMarks();
     this.initMinimap();
 
     // Setup Player
@@ -337,7 +512,11 @@ export class RacingGame {
       steerAngle: 0,
       slipstreamTime: 0,
       slipstreamActive: false,
+      slipstreamToastShown: false,
       hitCooldown: 0,
+      itemRouletteTimer: 0,
+      itemRouletteTick: 0,
+      pendingItem: null,
       speed: 0,
       baseSpeed: 0.00052, // relaxed kid-friendly speed for longer track
       lap: 1,
@@ -425,10 +604,19 @@ export class RacingGame {
     const steps = ['3', '2', '1', 'GO!'];
     steps.forEach((label, idx) => {
       const id = setTimeout(() => {
+        this.countdownStep = idx;
         this.callbacks.onCountdown(label);
         sound.playCountdown(label === 'GO!');
         if (label === 'GO!') {
           this.running = true;
+          sound.startEngine();
+          if (this.rocketStartReady && this.player) {
+            this.player.boostTimer = 70;
+            this.player.speed = this.player.baseSpeed * 1.28;
+            sound.playBoost();
+            this.callbacks.onActionToast?.('🚀 完美起跑！');
+            this.showKartEmote(this.player, '🔥');
+          }
           const clearId = setTimeout(() => this.callbacks.onCountdown(''), 700);
           this.countdownTimers.push(clearId);
         }
@@ -439,6 +627,9 @@ export class RacingGame {
 
   setSteer(val) {
     this.steerInput = val;
+    if (!this.running && this.mode === 'race' && this.countdownStep === 2 && val !== 0) {
+      this.rocketStartReady = true;
+    }
   }
 
   useItem() {
@@ -548,13 +739,58 @@ export class RacingGame {
     const dt60 = dt * 60;
     this.elapsedTime += dt;
 
+    // Live 3D Showroom rotation on Menu
+    if (this.mode === 'showroom') {
+      if (this.showroomKart) {
+        this.showroomKart.rotation.y += dt * 0.75;
+        this.showroomKart.position.y = Math.sin(this.elapsedTime * 3) * 0.06;
+        const ud = this.showroomKart.userData;
+        if (ud && ud.wheels) {
+          ud.wheels.forEach((w) => {
+            w.rotation.x += 0.08 * dt60;
+          });
+        }
+      }
+      this.renderer.render(this.scene, this.camera);
+      this.rafId = requestAnimationFrame((t) => this.animate(t));
+      return;
+    }
+
     let finishedThisFrame = false;
 
     if (this.running && this.player) {
       const p = this.player;
       if (p.hitCooldown > 0) p.hitCooldown = Math.max(0, p.hitCooldown - dt);
 
-      // 1. Target Speed with Boost, Slow, and Slipstream (Drafting)
+      // Item Roulette spin
+      if (p.itemRouletteTimer > 0) {
+        p.itemRouletteTimer -= dt;
+        p.itemRouletteTick += dt;
+        if (p.itemRouletteTimer <= 0) {
+          p.item = p.pendingItem;
+          p.pendingItem = null;
+          this.callbacks.onItemChange?.(p.item);
+          sound.playPickup();
+        } else if (p.itemRouletteTick >= 0.09) {
+          p.itemRouletteTick = 0;
+          const idx = Math.floor(this.elapsedTime * 15) % ITEMS.length;
+          this.callbacks.onItemRoulette?.(ITEMS[idx].emoji);
+          sound.playRouletteTick(idx);
+        }
+      }
+
+      // Compute track curvature for cornering physics (strictly bounded)
+      const safeTNow = ((p.t % 1) + 1) % 1;
+      this.track.curve.getTangentAt(safeTNow, this._tmpTan);
+      this.track.curve.getTangentAt((safeTNow + 0.012) % 1, this._tmpTan2);
+      if (this._tmpTan.lengthSq() > 1e-6) this._tmpTan.normalize();
+      else this._tmpTan.set(0, 0, 1);
+      if (this._tmpTan2.lengthSq() > 1e-6) this._tmpTan2.normalize();
+      else this._tmpTan2.copy(this._tmpTan);
+      const rawCurv = this._tmpTan.z * this._tmpTan2.x - this._tmpTan.x * this._tmpTan2.z;
+      const curvature = Number.isFinite(rawCurv) ? Math.max(-0.35, Math.min(0.35, rawCurv)) : 0;
+
+      // 1. Target Speed with Boost, Slow, Slipstream, and Inner-Lane Apex Bonus
       let targetSpeed = p.baseSpeed;
       if (p.boostTimer > 0) {
         targetSpeed *= 1.38;
@@ -566,6 +802,8 @@ export class RacingGame {
       if (p.slipstreamActive && p.slowTimer <= 0) {
         targetSpeed *= 1.14;
       }
+      const apexMult = Math.max(0.95, Math.min(1.05, 1 - curvature * p.lateral * 0.16));
+      targetSpeed *= apexMult;
 
       // Smooth acceleration & inertia curve
       const accelRate = targetSpeed > p.speed ? 4.2 : 6.5;
@@ -623,7 +861,7 @@ export class RacingGame {
         }
       }
 
-      // 3. Steering with Lateral Velocity (Inertia) + Auto-Drift & Mini-Turbo
+      // 3. Steering with Lateral Velocity + Cornering Centrifugal Force + Auto-Drift & Mini-Turbo
       if (this.steerInput !== 0) {
         const targetLatVel = this.steerInput * 1.95;
         p.lateralVel += (targetLatVel - p.lateralVel) * Math.min(1, dt * 11);
@@ -638,6 +876,8 @@ export class RacingGame {
         if (p.driftTime >= 0.75) {
           p.boostTimer = Math.max(p.boostTimer, 48);
           try { sound.playBoost(); } catch (_) {}
+          this.callbacks.onActionToast?.('🔥 甩尾加速！');
+          this.showKartEmote(p, '🔥');
         }
         p.driftTime = 0;
         p.driftDir = 0;
@@ -645,6 +885,9 @@ export class RacingGame {
         // Gentle auto-center assist
         p.lateral *= Math.pow(0.975, dt60);
       }
+
+      // Gentle outward centrifugal push in corners
+      p.lateralVel += curvature * 1.15 * dt;
 
       p.lateral += p.lateralVel * dt;
       if (p.lateral < -1 || p.lateral > 1) {
@@ -673,7 +916,7 @@ export class RacingGame {
       const targetSteerAng = -this.steerInput * 0.36;
       p.steerAngle += (targetSteerAng - p.steerAngle) * Math.min(1, dt * 14);
 
-      // Exhaust flames toggle & flicker
+      // Exhaust flames toggle & flicker + Speedometer & Speed Lines & Engine Audio
       const isBoosting = p.boostTimer > 0 || p.slipstreamActive;
       if (p.mesh.userData.exhaustFlames) {
         p.mesh.userData.exhaustFlames.forEach((flame) => {
@@ -685,6 +928,17 @@ export class RacingGame {
         });
       }
 
+      const kmh = Math.round((p.speed / p.baseSpeed) * 62);
+      if (kmh !== this.lastReportedSpeed || isBoosting !== this.lastBoostState) {
+        this.lastReportedSpeed = kmh;
+        this.callbacks.onSpeedChange?.(kmh, isBoosting);
+      }
+      if (isBoosting !== this.lastBoostState) {
+        this.lastBoostState = isBoosting;
+        this.callbacks.onBoostStateChange?.(isBoosting);
+      }
+      sound.updateEngine(p.speed / p.baseSpeed, isBoosting, p.yPos > 0.25);
+
       // Advance along track
       const prevT = p.t;
       p.t = ((p.t + p.speed * dt60) % 1 + 1) % 1;
@@ -693,35 +947,49 @@ export class RacingGame {
         p.lap++;
         if (p.lap > this.totalLaps) {
           this.running = false;
-          finishedThisFrame = true;
-          const finalRank = this.computeRank();
+          sound.stopEngine();
           sound.playFinish();
-          this.callbacks.onFinish({
-            rank: finalRank,
+          this.callbacks.onBoostStateChange?.(false);
+          this.callbacks.onActionToast?.('🏆 衝過終點線！');
+          this.showKartEmote(p, '😆');
+          this.victoryTimer = 1.75;
+          this.victoryStats = {
+            rank: this.computeRank(),
             total: 1 + this.ais.length,
             coins: p.coins,
-          });
+          };
         } else {
           this.callbacks.onLapChange(p.lap, this.totalLaps);
+          if (p.lap === this.totalLaps) {
+            this.callbacks.onActionToast?.('🏁 最後一圈！加油！');
+          }
         }
       }
 
       this.updateKartTransform(p, p.yPos + bounceY, dt60);
 
-      // Spawn drift sparks & boost flame particles
+      // Spawn drift sparks, skid marks & boost flame particles
       const kp = p.mesh.position;
-      if (isDrifting && Math.random() < 0.55) {
-        this.spawnParticle(
-          'spark',
-          kp.x + (Math.random() - 0.5) * 1.6,
-          0.25,
-          kp.z + (Math.random() - 0.5) * 1.6,
-          (Math.random() - 0.5) * 4,
-          1.8 + Math.random() * 2.2,
-          (Math.random() - 0.5) * 4,
-          0.28,
-          0.85
-        );
+      if (isDrifting) {
+        if (Math.random() < 0.55) {
+          this.spawnParticle(
+            'spark',
+            kp.x + (Math.random() - 0.5) * 1.6,
+            0.25,
+            kp.z + (Math.random() - 0.5) * 1.6,
+            (Math.random() - 0.5) * 4,
+            1.8 + Math.random() * 2.2,
+            (Math.random() - 0.5) * 4,
+            0.28,
+            0.85
+          );
+        }
+        if (Math.random() < 0.65) {
+          const rx = kp.x - this._tmpTan.x * 1.0;
+          const rz = kp.z - this._tmpTan.z * 1.0;
+          this.spawnSkidMark(rx + this._tmpNorm.x * 1.05, rz + this._tmpNorm.z * 1.05, this._tmpTan.x, this._tmpTan.z);
+          this.spawnSkidMark(rx - this._tmpNorm.x * 1.05, rz - this._tmpNorm.z * 1.05, this._tmpTan.x, this._tmpTan.z);
+        }
       }
       if (isBoosting && Math.random() < 0.65) {
         this.spawnParticle(
@@ -789,7 +1057,7 @@ export class RacingGame {
         if (ai.t < prevAiT) ai.lap++;
         this.updateKartTransform(ai, ai.yPos, dt60);
 
-        // Player vs AI Collision (with cooldown so it doesn't spam)
+        // Player vs AI Collision (with cooldown & emote reaction)
         const dist = p.mesh.position.distanceTo(ai.mesh.position);
         if (dist < 3.0) {
           const pushDir = p.lateral >= ai.lateral ? 1 : -1;
@@ -798,9 +1066,12 @@ export class RacingGame {
           if (p.hitCooldown <= 0) {
             p.hitCooldown = 0.35;
             this.cameraShake = Math.max(this.cameraShake, 0.22);
+            this.showKartEmote(ai, '😮');
             if (p.starTimer <= 0 && p.bubbleTimer <= 0) {
               p.lateralVel += pushDir * 1.4;
               p.slowTimer = Math.max(p.slowTimer, 15);
+            } else {
+              this.showKartEmote(p, '😆');
             }
             try { sound.playBoing(); } catch (_) {}
           }
@@ -825,13 +1096,21 @@ export class RacingGame {
       if (draftingNow) {
         p.slipstreamTime += dt;
         p.slipstreamActive = p.slipstreamTime >= 0.8;
+        if (p.slipstreamActive && !p.slipstreamToastShown) {
+          p.slipstreamToastShown = true;
+          this.callbacks.onActionToast?.('💨 尾流衝刺！');
+        }
       } else {
         p.slipstreamTime = Math.max(0, p.slipstreamTime - dt * 1.5);
         p.slipstreamActive = false;
+        if (p.slipstreamTime <= 0.1) p.slipstreamToastShown = false;
       }
 
       const currentRank = 1 + aheadCount;
       if (currentRank !== this.lastReportedRank) {
+        if (this.lastReportedRank > 0 && currentRank < this.lastReportedRank) {
+          this.showKartEmote(p, '😆');
+        }
         this.lastReportedRank = currentRank;
         this.callbacks.onRankChange?.(currentRank, 1 + this.ais.length);
       }
@@ -850,6 +1129,7 @@ export class RacingGame {
             ramp.userData.cooldown = 0.8;
             p.yVel = 14.5;
             p.boostTimer = Math.max(p.boostTimer, 35);
+            this.callbacks.onActionToast?.('🦘 飛躍跳台！');
             try { sound.playBoing(); } catch (_) {}
           }
           this.ais.forEach((ai) => {
@@ -870,6 +1150,7 @@ export class RacingGame {
           if (pad.position.distanceTo(p.mesh.position) < 3.4) {
             pad.userData.cooldown = 1.2;
             p.boostTimer = Math.max(p.boostTimer, 75);
+            this.callbacks.onActionToast?.('⚡ 加速帶衝刺！');
             try { sound.playBoost(); } catch (_) {}
           }
         });
@@ -911,33 +1192,60 @@ export class RacingGame {
         });
       }
 
-      // Obstacle collisions
+      // 3D Obstacle collisions (with Star/Bubble knockback launch!)
       if (this.track.obstacles) {
         this.track.obstacles.forEach((obs) => {
-          if (!obs.userData.active) {
-            obs.userData.respawnTimer -= dt60;
-            if (obs.userData.respawnTimer <= 0) {
-              obs.userData.active = true;
+          const ud = obs.userData;
+          if (ud.knockbackTimer > 0) {
+            ud.knockbackTimer -= dt;
+            obs.position.x += ud.kvx * dt;
+            obs.position.y += ud.kvy * dt;
+            obs.position.z += ud.kvz * dt;
+            ud.kvy -= 30 * dt;
+            obs.rotation.x += 7 * dt;
+            obs.rotation.z += 5 * dt;
+            if (ud.knockbackTimer <= 0) {
+              obs.visible = false;
+              obs.position.copy(ud.basePos);
+              obs.rotation.set(0, 0, 0);
+            }
+            return;
+          }
+          if (!ud.active) {
+            ud.respawnTimer -= dt60;
+            if (ud.respawnTimer <= 0) {
+              ud.active = true;
               obs.visible = true;
+              obs.position.copy(ud.basePos);
+              obs.rotation.set(0, 0, 0);
             }
             return;
           }
           const dist = obs.position.distanceTo(p.mesh.position);
-          if (dist < 3.0) {
-            obs.userData.active = false;
-            obs.visible = false;
-            obs.userData.respawnTimer = 180;
+          if (dist < 2.8 && p.yPos < 1.2) {
+            ud.active = false;
+            ud.respawnTimer = 220;
             sound.playBoing();
-            this.cameraShake = Math.max(this.cameraShake, 0.24);
-            if (p.starTimer <= 0 && p.bubbleTimer <= 0) {
-              p.slowTimer = 45;
-              p.bounceTimer = 20;
+            this.cameraShake = Math.max(this.cameraShake, 0.22);
+            if (p.starTimer > 0 || p.bubbleTimer > 0) {
+              // Blast obstacle flying into the air!
+              ud.knockbackTimer = 1.0;
+              ud.kvx = this._tmpTan.x * 22 + (Math.random() - 0.5) * 10;
+              ud.kvy = 16;
+              ud.kvz = this._tmpTan.z * 22 + (Math.random() - 0.5) * 10;
+              this.callbacks.onActionToast?.('💥 撞飛障礙物！');
+              this.showKartEmote(p, '😆');
+            } else {
+              obs.visible = false;
+              p.slowTimer = 34;
+              p.bounceTimer = 18;
+              this.showKartEmote(p, '😮');
             }
           }
         });
       }
 
-      // Item Box collisions
+      // Item Box collisions (triggers Item Roulette!)
       this.track.itemBoxes.forEach((box) => {
         box.rotation.y += 0.04 * dt60;
         box.rotation.x += 0.02 * dt60;
@@ -954,18 +1262,21 @@ export class RacingGame {
           box.userData.active = false;
           box.visible = false;
           box.userData.respawnTimer = 180;
-          if (!p.item) {
-            const picked = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-            p.item = picked;
-            this.callbacks.onItemChange(picked);
-            sound.playPickup();
+          if (!p.item && p.itemRouletteTimer <= 0) {
+            p.pendingItem = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+            p.itemRouletteTimer = 0.65;
+            p.itemRouletteTick = 0;
+            this.callbacks.onItemRoulette?.(ITEMS[0].emoji);
+            sound.playRouletteTick(0);
           }
         }
       });
     }
 
-    // Update pooled particles & ambient scenery
+    // Update pooled particles, skid marks, emotes & ambient scenery
     this.updateParticles(dt);
+    this.updateSkidMarks(dt);
+    this.updateEmotes(dt);
 
     if (this.track && this.track.animatedProps) {
       const time = this.elapsedTime * 2.0;
@@ -978,6 +1289,16 @@ export class RacingGame {
           prop.mesh.position.y = prop.baseY + Math.sin(time + prop.phase) * 0.6;
           prop.mesh.rotation.y += 0.015 * dt60;
         }
+      });
+    }
+
+    if (this.track && this.track.clouds) {
+      this.track.clouds.forEach((cloud) => {
+        cloud.userData.angle += dt * 0.008 * cloud.userData.speed;
+        const a = cloud.userData.angle;
+        const r = cloud.userData.rad;
+        cloud.position.x = Math.cos(a) * r + 90;
+        cloud.position.z = Math.sin(a) * r - 20;
       });
     }
 
@@ -1000,7 +1321,7 @@ export class RacingGame {
       posAttr.needsUpdate = true;
     }
 
-    // Smooth Third-Person Follow Camera + Bounded Shake + Dynamic Boost FOV
+    // Victory Orbit Celebration OR Smooth Third-Person Follow Camera
     if (this.player && this.track) {
       const marker = this.player.mesh.userData.playerMarker;
       if (marker) {
@@ -1008,42 +1329,95 @@ export class RacingGame {
         marker.rotation.y += 0.04 * dt60;
       }
 
-      const safeT = ((this.player.t % 1) + 1) % 1;
-      const kartPos = this.player.mesh.position;
-      this.track.curve.getTangentAt(safeT, this._tmpTan);
-      if (this._tmpTan.lengthSq() > 1e-6) this._tmpTan.normalize();
-      else this._tmpTan.set(0, 0, 1);
+      if (this.victoryTimer > 0) {
+        this.victoryTimer -= dt;
+        const happyY = Math.abs(Math.sin(this.elapsedTime * 9)) * 0.95;
+        this.updateKartTransform(this.player, happyY, dt60 * 0.3);
 
-      this._tmpCamPos
-        .copy(kartPos)
-        .addScaledVector(this._tmpTan, -11)
-        .add(this._tmpCamUp);
+        // Confetti shower!
+        const confettiTypes = ['confettiA', 'confettiB', 'confettiC', 'confettiD'];
+        const kp = this.player.mesh.position;
+        for (let c = 0; c < 3; c++) {
+          this.spawnParticle(
+            confettiTypes[Math.floor(Math.random() * confettiTypes.length)],
+            kp.x + (Math.random() - 0.5) * 8,
+            kp.y + 5.5 + Math.random() * 3,
+            kp.z + (Math.random() - 0.5) * 8,
+            (Math.random() - 0.5) * 4,
+            2 + Math.random() * 2,
+            (Math.random() - 0.5) * 4,
+            1.1,
+            1.15
+          );
+        }
 
-      const camLerp = 1 - Math.exp(-9 * dt);
-      this.camBasePos.lerp(this._tmpCamPos, camLerp);
-      this.camera.position.copy(this.camBasePos);
+        // Orbit camera safely around player kart
+        const orbitAngle = this.elapsedTime * 2.2;
+        this.camera.position.set(
+          kp.x + Math.cos(orbitAngle) * 9.5,
+          kp.y + 4.8,
+          kp.z + Math.sin(orbitAngle) * 9.5
+        );
+        this._tmpCamLook.set(kp.x, kp.y + 1.4, kp.z);
+        this.camera.lookAt(this._tmpCamLook);
 
-      // Apply bounded temporary camera shake AFTER lerp (never drifts or clips kart)
-      if (this.cameraShake > 0.005) {
-        const s = Math.min(0.25, this.cameraShake);
-        this.camera.position.x += (Math.random() - 0.5) * 2 * s;
-        this.camera.position.y += (Math.random() - 0.5) * 2 * s;
-        this.cameraShake *= Math.pow(0.82, dt60);
+        if (this.victoryTimer <= 0) {
+          finishedThisFrame = true;
+          this.callbacks.onFinish?.(this.victoryStats);
+        }
       } else {
-        this.cameraShake = 0;
-      }
+        const safeT = ((this.player.t % 1) + 1) % 1;
+        const kartPos = this.player.mesh.position;
+        this.track.curve.getTangentAt(safeT, this._tmpTan);
+        if (this._tmpTan.lengthSq() > 1e-6) this._tmpTan.normalize();
+        else this._tmpTan.set(0, 0, 1);
 
-      this._tmpCamLook.copy(kartPos).addScaledVector(this._tmpTan, 5);
-      this._tmpCamLook.y += 1.2;
-      this.camera.lookAt(this._tmpCamLook);
+        this._tmpCamPos
+          .copy(kartPos)
+          .addScaledVector(this._tmpTan, -11)
+          .add(this._tmpCamUp);
 
-      const targetBoostFov =
-        this.player.boostTimer > 0 ? 9 : this.player.slipstreamActive ? 4.5 : 0;
-      this.boostFovOffset += (targetBoostFov - this.boostFovOffset) * Math.min(1, dt * 6);
-      const desiredFov = Math.min(110, this.baseFov + this.boostFovOffset);
-      if (Math.abs(this.camera.fov - desiredFov) > 0.05) {
-        this.camera.fov = desiredFov;
-        this.camera.updateProjectionMatrix();
+        const camLerp = 1 - Math.exp(-9 * dt);
+        this.camBasePos.lerp(this._tmpCamPos, camLerp);
+
+        // Sharp-corner safety clamp: guarantee camera NEVER clips into or passes through the kart!
+        const dx = this.camBasePos.x - kartPos.x;
+        const dz = this.camBasePos.z - kartPos.z;
+        const horizDist = Math.hypot(dx, dz);
+        if (horizDist < 7.5) {
+          const nx = horizDist > 0.001 ? dx / horizDist : -this._tmpTan.x;
+          const nz = horizDist > 0.001 ? dz / horizDist : -this._tmpTan.z;
+          this.camBasePos.x = kartPos.x + nx * 8.5;
+          this.camBasePos.z = kartPos.z + nz * 8.5;
+        }
+        if (this.camBasePos.y < kartPos.y + 3.2) {
+          this.camBasePos.y = kartPos.y + 3.2;
+        }
+
+        this.camera.position.copy(this.camBasePos);
+
+        // Apply bounded temporary camera shake AFTER lerp (never drifts or clips kart)
+        if (this.cameraShake > 0.005) {
+          const s = Math.min(0.25, this.cameraShake);
+          this.camera.position.x += (Math.random() - 0.5) * 2 * s;
+          this.camera.position.y += (Math.random() - 0.5) * 2 * s;
+          this.cameraShake *= Math.pow(0.82, dt60);
+        } else {
+          this.cameraShake = 0;
+        }
+
+        this._tmpCamLook.copy(kartPos).addScaledVector(this._tmpTan, 5);
+        this._tmpCamLook.y += 1.2;
+        this.camera.lookAt(this._tmpCamLook);
+
+        const targetBoostFov =
+          this.player.boostTimer > 0 ? 9 : this.player.slipstreamActive ? 4.5 : 0;
+        this.boostFovOffset += (targetBoostFov - this.boostFovOffset) * Math.min(1, dt * 6);
+        const desiredFov = Math.min(110, this.baseFov + this.boostFovOffset);
+        if (Math.abs(this.camera.fov - desiredFov) > 0.05) {
+          this.camera.fov = desiredFov;
+          this.camera.updateProjectionMatrix();
+        }
       }
 
       this.drawMinimap();
