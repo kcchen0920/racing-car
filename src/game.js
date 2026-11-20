@@ -161,8 +161,9 @@ export class RacingGame {
     this.track = buildTrack(this.scene, trackId);
 
     // Setup Player
-    const playerMesh = createKartMesh(kartId, customColor, heroPhotoUrl);
+    const playerMesh = createKartMesh(kartId, customColor, heroPhotoUrl, true);
     this.scene.add(playerMesh);
+    const playerColorHex = playerMesh.userData.baseColor;
     this.player = {
       mesh: playerMesh,
       t: 0,
@@ -180,11 +181,37 @@ export class RacingGame {
       bounceTimer: 0,
     };
 
-    // Setup 7 AI opponents (8 cars total)
-    const aiColors = [0x29b6f6, 0xab47bc, 0xffa726, 0x26a69a, 0xec407a, 0x8d6e63, 0x5c6bc0];
+    // Setup 7 AI opponents (8 cars total) with colors guaranteed distinct from player
+    const playerHsl = { h: 0, s: 0, l: 0 };
+    new THREE.Color(playerColorHex).getHSL(playerHsl);
+    const aiColorPool = [
+      0xab47bc, // purple
+      0x26a69a, // teal
+      0xff9800, // orange
+      0x5c6bc0, // indigo
+      0x66bb6a, // green
+      0x8d6e63, // brown
+      0x78909c, // slate
+      0x00acc1, // cyan
+      0x9ccc65, // lime
+      0x7e57c2, // deep purple
+      0x29b6f6, // sky blue
+      0xec407a, // magenta
+    ];
+    const tmpHsl = { h: 0, s: 0, l: 0 };
+    const aiColors = aiColorPool.filter((hex) => {
+      if (hex === playerColorHex) return false;
+      new THREE.Color(hex).getHSL(tmpHsl);
+      const rawDiff = Math.abs(tmpHsl.h - playerHsl.h);
+      const hueDiff = Math.min(rawDiff, 1 - rawDiff);
+      // Avoid colors visually close to player's hue when both are saturated
+      if (tmpHsl.s > 0.25 && playerHsl.s > 0.25 && hueDiff < 0.085) return false;
+      return true;
+    });
+
     this.ais = Array.from({ length: 7 }, (_, idx) => {
       const typeId = KART_TYPES[idx % KART_TYPES.length].id;
-      const mesh = createKartMesh(typeId, aiColors[idx]);
+      const mesh = createKartMesh(typeId, aiColors[idx % aiColors.length]);
       this.scene.add(mesh);
       const initLat = ((idx % 3) - 1) * 0.45;
       return {
@@ -533,6 +560,11 @@ export class RacingGame {
 
     // Smooth Third-Person Follow Camera + Dynamic Boost FOV
     if (this.player && this.track) {
+      const marker = this.player.mesh.userData.playerMarker;
+      if (marker) {
+        marker.position.y = marker.userData.baseY + Math.sin(this.elapsedTime * 5) * 0.18;
+        marker.rotation.y += 0.04 * dt60;
+      }
       const kartPos = this.player.mesh.position;
       this.track.curve.getTangentAt(this.player.t % 1, this._tmpTan).normalize();
       this._tmpCamPos

@@ -30,7 +30,7 @@ export const KART_TYPES = [
   },
 ];
 
-export function createKartMesh(typeId, customColor = null, heroPhotoUrl = null) {
+export function createKartMesh(typeId, customColor = null, heroPhotoUrl = null, isPlayer = false) {
   const cfg = KART_TYPES.find((k) => k.id === typeId) || KART_TYPES[0];
   const bodyColor = customColor || cfg.bodyColor;
   const group = new THREE.Group();
@@ -203,9 +203,22 @@ export function createKartMesh(typeId, customColor = null, heroPhotoUrl = null) 
     group.add(sprite);
   }
 
+  // Player Overhead Marker (floating golden pointer so player is always unmistakable)
+  let playerMarker = null;
+  if (isPlayer) {
+    const markerGeo = new THREE.ConeGeometry(0.32, 0.55, 6);
+    markerGeo.rotateX(Math.PI);
+    const markerMat = new THREE.MeshBasicMaterial({ color: 0xffd54f });
+    playerMarker = new THREE.Mesh(markerGeo, markerMat);
+    const baseMarkerY = heroPhotoUrl ? 3.85 : 2.95;
+    playerMarker.position.set(0, baseMarkerY, -0.1);
+    playerMarker.userData = { baseY: baseMarkerY };
+    group.add(playerMarker);
+  }
+
   group.traverse((obj) => {
     obj.frustumCulled = false;
   });
-  group.userData = { wheels, body: tub, bodyMat, baseColor: bodyColor, bubble };
+  group.userData = { wheels, body: tub, bodyMat, baseColor: bodyColor, bubble, playerMarker };
   return group;
 }
