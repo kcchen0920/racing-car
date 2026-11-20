@@ -219,11 +219,40 @@ const game = new RacingGame(document.getElementById('game-container'), {
   },
 });
 
+function bindFastTap(el, handler) {
+  if (!el) return;
+  let startX = 0;
+  let startY = 0;
+  let lastFired = 0;
+  el.addEventListener('pointerdown', (e) => {
+    startX = e.clientX;
+    startY = e.clientY;
+  });
+  el.addEventListener('pointerup', (e) => {
+    if (Math.hypot(e.clientX - startX, e.clientY - startY) < 20) {
+      const now = performance.now();
+      if (now - lastFired > 220) {
+        lastFired = now;
+        handler(e);
+      }
+    }
+  });
+  el.addEventListener('click', (e) => {
+    const now = performance.now();
+    if (now - lastFired > 220) {
+      lastFired = now;
+      handler(e);
+    }
+  });
+}
+
 async function startGame() {
   sound.init();
   sound.startBGM();
-  if (gyroEnabled) {
+  if (gyroEnabled && !gyroListening) {
     await ensureGyroPermission();
+  }
+  if (gyroEnabled) {
     calibrateGyro();
   }
   menuEl.classList.add('hidden');
@@ -249,15 +278,18 @@ function goHome() {
   refreshShowroom();
 }
 
-document.getElementById('start-btn').onclick = startGame;
-nextStageBtn.onclick = () => {
+bindFastTap(document.getElementById('start-btn'), startGame);
+bindFastTap(nextStageBtn, () => {
   const idx = TRACK_THEMES.findIndex((t) => t.id === selectedTrack);
   if (idx >= 0 && idx < TRACK_THEMES.length - 1) {
     selectedTrack = TRACK_THEMES[idx + 1].id;
+    document.querySelectorAll('#track-choices .pick-btn').forEach((b, bIdx) => {
+      b.classList.toggle('selected', bIdx === idx + 1);
+    });
     startGame();
   }
-};
-document.getElementById('replay-btn').onclick = goHome;
+});
+bindFastTap(document.getElementById('replay-btn'), goHome);
 
 // Pause menu controls
 const pauseBtn = document.getElementById('pause-btn');
@@ -269,13 +301,13 @@ pauseBtn.addEventListener('pointerdown', (e) => {
   game.pause();
   pauseEl.classList.remove('hidden');
 });
-document.getElementById('resume-btn').onclick = () => {
+bindFastTap(document.getElementById('resume-btn'), () => {
   pauseEl.classList.add('hidden');
   sound.startBGM();
   game.resume();
-};
-document.getElementById('restart-btn').onclick = startGame;
-document.getElementById('pause-home-btn').onclick = goHome;
+});
+bindFastTap(document.getElementById('restart-btn'), startGame);
+bindFastTap(document.getElementById('pause-home-btn'), goHome);
 
 // Launch live 3D showroom immediately on menu
 refreshShowroom();
@@ -381,16 +413,17 @@ function onDeviceOrientation(e) {
   if (delta > 180) delta -= 360;
   if (delta < -180) delta += 360;
 
-  const deadzone = 4;
-  const maxTilt = 26;
+  const deadzone = 2.0;
+  const maxTilt = 19.0;
   let target = 0;
   if (Math.abs(delta) > deadzone) {
     const sign = Math.sign(delta);
-    target = Math.max(-1, Math.min(1, (delta - sign * deadzone) / (maxTilt - deadzone)));
+    const norm = Math.min(1, (Math.abs(delta) - deadzone) / (maxTilt - deadzone));
+    target = sign * Math.pow(norm, 0.85);
   }
 
-  smoothedGyroSteer += (target - smoothedGyroSteer) * 0.28;
-  if (Math.abs(smoothedGyroSteer) < 0.03 && target === 0) smoothedGyroSteer = 0;
+  smoothedGyroSteer += (target - smoothedGyroSteer) * 0.55;
+  if (Math.abs(smoothedGyroSteer) < 0.025 && target === 0) smoothedGyroSteer = 0;
   game.setGyroSteer(smoothedGyroSteer);
   refreshSteerHints();
 }
